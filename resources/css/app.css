@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    body {
+        background-color: #FBF8F4;
+        color: #17120E;
+    }
+}
+
+[x-cloak] {
+    display: none !important;
+}
+
+/* Micro-animations discrètes : coche de confirmation, pastilles de fidélité. */
+@keyframes revo-coche-dessin {
+    from { stroke-dashoffset: 48; }
+    to { stroke-dashoffset: 0; }
+}
+.revo-coche path {
+    stroke-dasharray: 48;
+    stroke-dashoffset: 48;
+    animation: revo-coche-dessin .6s ease-out .15s forwards;
+}
+
+@keyframes revo-pastille-remplissage {
+    from { transform: scale(.6); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+.revo-pastille-atteinte {
+    animation: revo-pastille-remplissage .45s cubic-bezier(.34,1.56,.64,1) both;
+}
+
+@keyframes revo-apparition {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.revo-apparition {
+    animation: revo-apparition .5s ease-out both;
+}
