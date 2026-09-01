@@ -56,6 +56,11 @@ class AdminPanelProvider extends PanelProvider
                 'success' => Color::hex('#3F7D4A'),
             ])
             ->font('Poppins')
+            // Thème Tailwind dédié au panneau (resources/css/filament/admin/theme.css) :
+            // nécessaire pour que les classes utilitaires custom des vues
+            // Filament (cartes du tableau de bord, etc.) soient réellement
+            // compilées — le bundle par défaut de Filament ne les connaît pas.
+            ->viteTheme('resources/css/filament/admin/theme.css')
             // Cloche de notifications (nouvelles commandes) dans la barre du
             // haut, avec relecture de l'historique en base.
             ->databaseNotifications()
