@@ -39,3 +39,39 @@
 .revo-apparition {
     animation: revo-apparition .5s ease-out both;
 }
+
+/* Barre de chargement de page (public/page-loader.js). Transform plutôt que
+   width : animation fluide, accélérée matériellement. */
+#revo-page-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, #AB6715, #8E3914);
+    transform: scaleX(0);
+    transform-origin: left center;
+    opacity: 0;
+    z-index: 9999;
+    pointer-events: none;
+    transition: opacity .25s ease;
+}
+#revo-page-loader.is-loading {
+    opacity: 1;
+    animation: revo-page-loader-avance 8s cubic-bezier(.1, .6, .2, 1) forwards;
+}
+@keyframes revo-page-loader-avance {
+    0% { transform: scaleX(0); }
+    100% { transform: scaleX(.9); }
+}
+@media (prefers-reduced-motion: reduce) {
+    #revo-page-loader.is-loading {
+        animation: none;
+        opacity: 1;
+        transform: scaleX(.9);
+        transition: transform .3s ease, opacity .25s ease;
+    }
+}
+html[data-navigating], html[data-navigating] a, html[data-navigating] button {
+    cursor: progress;
+}
