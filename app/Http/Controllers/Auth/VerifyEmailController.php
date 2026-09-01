@@ -22,6 +22,6 @@ class VerifyEmailController extends Controller
             event(new Verified($request->user()));
         }
 
-        return redirect()->intended('/admin?verified=1');
+        return redirect()->intended('/'.config('revolution.admin_path').'?verified=1');
     }
 }

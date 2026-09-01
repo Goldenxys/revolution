@@ -30,7 +30,8 @@ class AdminPanelProvider extends PanelProvider
             // config/revolution.php (admin_path).
             ->path(config('revolution.admin_path'))
             // L'espace gérante n'a pas de page de connexion Filament : elle passe
-            // par l'écran de connexion Breeze (/login), garde web classique.
+            // par l'écran de connexion Breeze, garde web classique — servi
+            // sous ce même chemin secret (routes/auth.php), jamais à /login.
             ->login(false)
             ->authGuard('web')
             ->brandName('RÉVOLUTION')

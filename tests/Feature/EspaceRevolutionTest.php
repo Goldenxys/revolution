@@ -19,7 +19,8 @@ class EspaceRevolutionTest extends TestCase
     {
         $reponse = $this->get($this->chemin());
 
-        $reponse->assertRedirect('/login');
+        $reponse->assertRedirect(route('login'));
+        $this->assertStringStartsWith($this->chemin(), route('login', absolute: false));
     }
 
     public function test_admin_nest_pas_accessible_sur_slash_admin(): void
@@ -28,6 +29,14 @@ class EspaceRevolutionTest extends TestCase
         $reponse = $this->get('/admin');
 
         $reponse->assertNotFound();
+    }
+
+    public function test_login_nest_pas_accessible_a_ladresse_classique(): void
+    {
+        // /login est la toute première adresse ciblée par le brute force
+        // automatisé : elle ne doit jamais répondre, même pour rediriger.
+        $this->get('/login')->assertNotFound();
+        $this->post('/login')->assertNotFound();
     }
 
     public function test_admin_accessible_une_fois_connectee(): void
