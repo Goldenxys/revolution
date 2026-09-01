@@ -38,9 +38,18 @@
         </main>
 
         <div class="mx-auto w-full max-w-colonne px-6">
-            <p class="py-10 text-center text-[11px] tracking-wide text-texte-secondaire">
+            <div class="pt-10 pb-6 text-center text-[11px] tracking-wide text-texte-secondaire">
                 RÉVOLUTION — Abidjan, Côte d’Ivoire
-            </p>
+            </div>
+            <div class="pb-10 flex items-center justify-center gap-4 text-[11px] text-texte-secondaire">
+                <a href="{{ route('legal.mentions-legales') }}" class="hover:text-rouille transition underline underline-offset-4 decoration-filet">
+                    Mentions légales
+                </a>
+                <span class="text-filet">·</span>
+                <a href="{{ route('legal.confidentialite') }}" class="hover:text-rouille transition underline underline-offset-4 decoration-filet">
+                    Confidentialité
+                </a>
+            </div>
         </div>
     </div>
 </body>

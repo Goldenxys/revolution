@@ -25,6 +25,10 @@ Route::get('/client/reconnaissance', ClientReconnaissanceController::class)
     ->middleware('throttle:20,1')
     ->name('client.reconnaissance');
 
+// Informations légales
+Route::view('/mentions-legales', 'legal.mentions-legales')->name('legal.mentions-legales');
+Route::view('/confidentialite', 'legal.confidentialite')->name('legal.confidentialite');
+
 // Compte de la gérante (Breeze) — l'Espace RÉVOLUTION lui-même vit sous le
 // chemin secret défini dans config('revolution.admin_path') (Filament).
 Route::middleware('auth')->group(function () {
