@@ -20,6 +20,7 @@
             action="{{ route('commande.store') }}"
             x-data="commandeForm({
                 communes: @js($communes),
+                typesSansTaille: @js(config('revolution.types_sans_taille')),
                 urlReconnaissance: '{{ route('client.reconnaissance') }}',
                 nom: '{{ old('nom') }}',
                 telephone: '{{ old('telephone') }}',
@@ -196,9 +197,9 @@
                         @error('type_article')<p class="mt-1.5 text-xs text-rouille">{{ $message }}</p>@enderror
                     </div>
 
-                    <div x-show="!estCasquette" x-cloak>
+                    <div x-show="!sansTaille" x-cloak>
                         <label for="taille" class="block text-sm mb-2">Taille <span class="text-rouille">*</span></label>
-                        <select id="taille" name="taille" :required="!estCasquette" :disabled="estCasquette"
+                        <select id="taille" name="taille" :required="!sansTaille" :disabled="sansTaille"
                                 class="w-full border {{ $errors->has('taille') ? 'border-rouille' : 'border-filet' }} bg-carte px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
                             <option value="" disabled {{ old('taille') ? '' : 'selected' }}>Choisissez une taille</option>
                             @foreach ($tailles as $taille)
@@ -208,9 +209,9 @@
                         @error('taille')<p class="mt-1.5 text-xs text-rouille">{{ $message }}</p>@enderror
                     </div>
 
-                    <template x-if="estCasquette">
+                    <template x-if="sansTaille">
                         <p class="text-[14px] text-texte-secondaire revo-apparition" x-cloak>
-                            Les casquettes sont en taille unique : pas besoin de préciser une taille.
+                            Cet article est en taille unique : pas besoin de préciser une taille.
                         </p>
                     </template>
 

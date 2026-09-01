@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\Commande;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class CommandeTest extends TestCase
@@ -94,13 +95,14 @@ class CommandeTest extends TestCase
         Mail::assertQueued(CommandeRecue::class);
     }
 
-    public function test_commande_casquette_valide_sans_taille(): void
+    #[DataProvider('typesSansTailleProvider')]
+    public function test_commande_en_taille_unique_valide_sans_taille(string $type): void
     {
         Mail::fake();
 
         $reponse = $this->post(route('commande.store'), $this->donneesAutre([
-            'type_article' => 'Casquette',
-            'nom_article' => 'Casquette RÉVOLUTION',
+            'type_article' => $type,
+            'nom_article' => $type.' RÉVOLUTION',
             'taille' => null,
         ]));
 
@@ -108,10 +110,19 @@ class CommandeTest extends TestCase
 
         $this->assertNotNull($commande);
         $reponse->assertRedirect(route('commande.confirmation', $commande->reference));
-        $this->assertSame('Casquette', $commande->type_article);
+        $this->assertSame($type, $commande->type_article);
         $this->assertNull($commande->taille);
 
         Mail::assertQueued(CommandeRecue::class);
+    }
+
+    public static function typesSansTailleProvider(): array
+    {
+        return [
+            'casquette' => ['Casquette'],
+            'chaussette' => ['Chaussette'],
+            'tote bag' => ['Tote bag'],
+        ];
     }
 
     public function test_taille_reste_obligatoire_pour_un_article_autre_quune_casquette(): void

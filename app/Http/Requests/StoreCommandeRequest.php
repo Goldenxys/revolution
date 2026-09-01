@@ -46,9 +46,10 @@ class StoreCommandeRequest extends FormRequest
                 'date_format:H:i',
             ],
 
-            // Article — sans objet pour une casquette (taille unique).
+            // Article — sans objet pour les articles en taille unique
+            // (tote bag, chaussette, casquette).
             'taille' => [
-                Rule::requiredIf(fn () => $this->input('type_article') !== 'Casquette'),
+                Rule::requiredIf(fn () => ! in_array($this->input('type_article'), config('revolution.types_sans_taille'), true)),
                 'nullable',
                 Rule::in(config('revolution.tailles')),
             ],

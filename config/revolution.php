@@ -42,6 +42,18 @@ return [
 
     'types' => ['Tee-shirt', 'Pull', 'Tote bag', 'Chaussette', 'Casquette'],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Types d'article sans taille
+    |--------------------------------------------------------------------------
+    |
+    | Ces articles sont en taille unique : le champ Taille est masqué et
+    | facultatif pour eux, aussi bien côté formulaire public que côté
+    | Espace RÉVOLUTION.
+    |
+    */
+    'types_sans_taille' => ['Tote bag', 'Chaussette', 'Casquette'],
+
     'couleurs' => ['Blanc', 'Noir', 'Beige', 'Terracotta', 'Kaki', 'Bleu nuit', 'Autre'],
 
     /*

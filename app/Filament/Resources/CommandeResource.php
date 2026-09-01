@@ -79,8 +79,8 @@ class CommandeResource extends Resource
                         ->label('Taille')
                         ->options(array_combine(config('revolution.tailles'), config('revolution.tailles')))
                         ->native(false)
-                        ->visible(fn (Get $get) => $get('type_article') !== 'Casquette')
-                        ->required(fn (Get $get) => $get('type_article') !== 'Casquette'),
+                        ->visible(fn (Get $get) => ! in_array($get('type_article'), config('revolution.types_sans_taille'), true))
+                        ->required(fn (Get $get) => ! in_array($get('type_article'), config('revolution.types_sans_taille'), true)),
 
                     Select::make('couleur')
                         ->label('Couleur')

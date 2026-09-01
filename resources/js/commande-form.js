@@ -26,6 +26,7 @@ function formatFrancs(montant) {
 export default function commandeForm(config) {
     return {
         communes: config.communes,
+        typesSansTaille: config.typesSansTaille || [],
         urlReconnaissance: config.urlReconnaissance,
 
         nom: config.nom || '',
@@ -64,8 +65,8 @@ export default function commandeForm(config) {
             return this.modeLivraison === 'livreur';
         },
 
-        get estCasquette() {
-            return this.typeArticle === 'Casquette';
+        get sansTaille() {
+            return this.typesSansTaille.includes(this.typeArticle);
         },
 
         async verifierClient() {
