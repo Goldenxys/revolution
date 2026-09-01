@@ -28,6 +28,7 @@
                 modeLivraison: '{{ old('mode_livraison') }}',
                 dateSouhaitee: '{{ old('date_souhaitee') }}',
                 heureSouhaitee: '{{ old('heure_souhaitee') }}',
+                typeArticle: '{{ old('type_article') }}',
             })"
             @submit="envoi = true"
             class="space-y-8"
@@ -185,6 +186,7 @@
                     <div>
                         <label for="type_article" class="block text-sm mb-2">Type d'article <span class="text-rouille">*</span></label>
                         <select id="type_article" name="type_article" required
+                                x-model="typeArticle"
                                 class="w-full border {{ $errors->has('type_article') ? 'border-rouille' : 'border-filet' }} bg-carte px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
                             <option value="" disabled {{ old('type_article') ? '' : 'selected' }}>Choisissez un type d'article</option>
                             @foreach ($types as $type)
@@ -194,9 +196,9 @@
                         @error('type_article')<p class="mt-1.5 text-xs text-rouille">{{ $message }}</p>@enderror
                     </div>
 
-                    <div>
+                    <div x-show="!estCasquette" x-cloak>
                         <label for="taille" class="block text-sm mb-2">Taille <span class="text-rouille">*</span></label>
-                        <select id="taille" name="taille" required
+                        <select id="taille" name="taille" :required="!estCasquette" :disabled="estCasquette"
                                 class="w-full border {{ $errors->has('taille') ? 'border-rouille' : 'border-filet' }} bg-carte px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
                             <option value="" disabled {{ old('taille') ? '' : 'selected' }}>Choisissez une taille</option>
                             @foreach ($tailles as $taille)
@@ -205,6 +207,12 @@
                         </select>
                         @error('taille')<p class="mt-1.5 text-xs text-rouille">{{ $message }}</p>@enderror
                     </div>
+
+                    <template x-if="estCasquette">
+                        <p class="text-[14px] text-texte-secondaire revo-apparition" x-cloak>
+                            Les casquettes sont en taille unique : pas besoin de préciser une taille.
+                        </p>
+                    </template>
 
                     <div>
                         <label for="couleur" class="block text-sm mb-2">Couleur</label>

@@ -184,7 +184,7 @@ class TableauDeBord extends Page implements HasTable
 
                 TextColumn::make('taille_couleur')
                     ->label('Taille / couleur')
-                    ->state(fn (Commande $commande) => trim($commande->taille.($commande->couleur ? ' · '.$commande->couleur : ''))),
+                    ->state(fn (Commande $commande) => collect([$commande->taille, $commande->couleur])->filter()->implode(' · ') ?: '—'),
 
                 TextColumn::make('commune')
                     ->label('Commune')

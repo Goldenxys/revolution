@@ -46,8 +46,12 @@ class StoreCommandeRequest extends FormRequest
                 'date_format:H:i',
             ],
 
-            // Article
-            'taille' => ['required', Rule::in(config('revolution.tailles'))],
+            // Article — sans objet pour une casquette (taille unique).
+            'taille' => [
+                Rule::requiredIf(fn () => $this->input('type_article') !== 'Casquette'),
+                'nullable',
+                Rule::in(config('revolution.tailles')),
+            ],
             'couleur' => ['nullable', Rule::in(config('revolution.couleurs'))],
 
             // Variante « Autre collection »

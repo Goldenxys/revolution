@@ -94,6 +94,40 @@ class CommandeTest extends TestCase
         Mail::assertQueued(CommandeRecue::class);
     }
 
+    public function test_commande_casquette_valide_sans_taille(): void
+    {
+        Mail::fake();
+
+        $reponse = $this->post(route('commande.store'), $this->donneesAutre([
+            'type_article' => 'Casquette',
+            'nom_article' => 'Casquette RÉVOLUTION',
+            'taille' => null,
+        ]));
+
+        $commande = Commande::first();
+
+        $this->assertNotNull($commande);
+        $reponse->assertRedirect(route('commande.confirmation', $commande->reference));
+        $this->assertSame('Casquette', $commande->type_article);
+        $this->assertNull($commande->taille);
+
+        Mail::assertQueued(CommandeRecue::class);
+    }
+
+    public function test_taille_reste_obligatoire_pour_un_article_autre_quune_casquette(): void
+    {
+        Mail::fake();
+
+        $reponse = $this->from(route('commande.autre'))->post(route('commande.store'), $this->donneesAutre([
+            'type_article' => 'Pull',
+            'taille' => null,
+        ]));
+
+        $reponse->assertSessionHasErrors('taille');
+        $this->assertSame(0, Commande::count());
+        Mail::assertNothingQueued();
+    }
+
     public function test_client_existant_reconnu_par_telephone_incremente_compteur(): void
     {
         Mail::fake();

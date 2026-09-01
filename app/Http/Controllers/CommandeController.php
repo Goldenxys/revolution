@@ -46,7 +46,7 @@ class CommandeController extends Controller
                 'collection' => $donnees['collection'],
                 'type_article' => $donnees['type_article'] ?? null,
                 'nom_article' => $donnees['nom_article'] ?? null,
-                'taille' => $donnees['taille'],
+                'taille' => $donnees['taille'] ?? null,
                 'couleur' => $donnees['couleur'] ?? null,
                 'verset_reference' => $donnees['verset_reference'] ?? null,
                 'verset_texte' => $donnees['verset_texte'] ?? null,

@@ -35,6 +35,7 @@ export default function commandeForm(config) {
         modeLivraison: config.modeLivraison || '',
         dateSouhaitee: config.dateSouhaitee || '',
         heureSouhaitee: config.heureSouhaitee || '',
+        typeArticle: config.typeArticle || '',
 
         clientConnu: false,
         clientMessage: '',
@@ -61,6 +62,10 @@ export default function commandeForm(config) {
 
         get estLivreur() {
             return this.modeLivraison === 'livreur';
+        },
+
+        get estCasquette() {
+            return this.typeArticle === 'Casquette';
         },
 
         async verifierClient() {

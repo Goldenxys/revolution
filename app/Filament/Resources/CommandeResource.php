@@ -79,7 +79,8 @@ class CommandeResource extends Resource
                         ->label('Taille')
                         ->options(array_combine(config('revolution.tailles'), config('revolution.tailles')))
                         ->native(false)
-                        ->required(),
+                        ->visible(fn (Get $get) => $get('type_article') !== 'Casquette')
+                        ->required(fn (Get $get) => $get('type_article') !== 'Casquette'),
 
                     Select::make('couleur')
                         ->label('Couleur')
@@ -104,6 +105,7 @@ class CommandeResource extends Resource
                         ->label('Type d\'article')
                         ->options(array_combine(config('revolution.types'), config('revolution.types')))
                         ->native(false)
+                        ->live()
                         ->visible(fn (?Commande $record) => ! ($record?->estMyVerse() ?? false)),
 
                     TextInput::make('nom_article')
@@ -194,7 +196,7 @@ class CommandeResource extends Resource
 
                 TextColumn::make('taille_couleur')
                     ->label('Taille / couleur')
-                    ->state(fn (Commande $commande) => trim($commande->taille.($commande->couleur ? ' · '.$commande->couleur : ''))),
+                    ->state(fn (Commande $commande) => collect([$commande->taille, $commande->couleur])->filter()->implode(' · ') ?: '—'),
 
                 TextColumn::make('commune')
                     ->label('Commune')
@@ -287,7 +289,7 @@ class CommandeResource extends Resource
             InfolistSection::make('Article')
                 ->columns(2)
                 ->schema([
-                    TextEntry::make('taille')->label('Taille'),
+                    TextEntry::make('taille')->label('Taille')->placeholder('Taille unique'),
                     TextEntry::make('couleur')->label('Couleur')->placeholder('—'),
                     TextEntry::make('type_article')->label('Type d\'article')->placeholder('—'),
                     TextEntry::make('nom_article')->label('Nom de l\'article')->placeholder('—'),

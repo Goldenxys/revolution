@@ -5,9 +5,12 @@
         ? 'MY VERSE BY RÉVOLUTION – 2026'
         : 'Autre collection RÉVOLUTION – 2026';
 
+    $tailleLigne = $commande->taille ? ' · taille '.$commande->taille : '';
+    $couleurLigne = $commande->couleur ? ' · couleur '.$commande->couleur : '';
+
     $articleLigne = $commande->estMyVerse()
-        ? trim('Tee-shirt MY VERSE · taille '.$commande->taille.($commande->couleur ? ' · couleur '.$commande->couleur : ''))
-        : trim(($commande->type_article ?? 'Article').' « '.($commande->nom_article ?? '').' » · taille '.$commande->taille.($commande->couleur ? ' · couleur '.$commande->couleur : ''));
+        ? trim('Tee-shirt MY VERSE'.$tailleLigne.$couleurLigne)
+        : trim(($commande->type_article ?? 'Article').' « '.($commande->nom_article ?? '').' »'.$tailleLigne.$couleurLigne);
 
     $livraisonLigne = $commande->estYango()
         ? 'Yango — '.Francais::dateHeureLongue($commande->date_souhaitee, $commande->heure_souhaitee)
