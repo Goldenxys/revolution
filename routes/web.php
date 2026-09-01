@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ExportController;
+use App\Http\Controllers\Admin\NotificationSonController;
 use App\Http\Controllers\ClientReconnaissanceController;
 use App\Http\Controllers\CommandeController;
 use App\Http\Controllers\ProfileController;
@@ -35,6 +36,11 @@ Route::middleware('auth')->group(function () {
     Route::prefix(config('revolution.admin_path'))->group(function () {
         Route::get('/export/commandes', [ExportController::class, 'commandesJour'])->name('admin.export.commandes');
         Route::get('/export/clients', [ExportController::class, 'clients'])->name('admin.export.clients');
+
+        // Compteur de notifications non lues, sondé en JS pour déclencher le
+        // son d'alerte de nouvelle commande (resources/js/notification-son.js).
+        Route::get('/notifications/compte', [NotificationSonController::class, 'compte'])
+            ->name('admin.notifications.compte');
     });
 });
 

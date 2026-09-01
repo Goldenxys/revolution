@@ -7,7 +7,9 @@ use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Panel;
 use Filament\PanelProvider;
+use Filament\Support\Assets\Js;
 use Filament\Support\Colors\Color;
+use Filament\Support\Facades\FilamentAsset;
 use Filament\View\PanelsRenderHook;
 use Filament\Widgets;
 use Illuminate\Auth\Middleware\Authenticate;
@@ -21,6 +23,16 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
 {
+    public function boot(): void
+    {
+        // Son d'alerte de nouvelle commande (resources/js/filament/notification-son.js) :
+        // publié par `php artisan filament:assets` et chargé nativement dans
+        // le panneau, pas via notre propre bundle Vite (que Filament n'utilise pas).
+        FilamentAsset::register([
+            Js::make('revo-notification-son', __DIR__.'/../../../resources/js/filament/notification-son.js'),
+        ], package: 'revolution/notification-son');
+    }
+
     public function panel(Panel $panel): Panel
     {
         return $panel
@@ -44,11 +56,23 @@ class AdminPanelProvider extends PanelProvider
                 'success' => Color::hex('#3F7D4A'),
             ])
             ->font('Poppins')
+            // Cloche de notifications (nouvelles commandes) dans la barre du
+            // haut, avec relecture de l'historique en base.
+            ->databaseNotifications()
+            ->databaseNotificationsPolling('15s')
             // Barre de progression de navigation Livewire (wire:navigate) aux
             // couleurs de la marque plutôt qu'au bleu par défaut.
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn (): HtmlString => new HtmlString('<style>:root{--livewire-progress-bar-color:#8E3914;}</style>'),
+            )
+            // Marqueur lu par le script enregistré dans boot() ci-dessus :
+            // l'URL à sonder pour le compteur de notifications non lues.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): HtmlString => new HtmlString(
+                    '<div data-revo-notifications-compte-url="'.route('admin.notifications.compte').'"></div>'
+                ),
             )
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             // Pas de Pages\Dashboard::class : le tableau de bord est notre

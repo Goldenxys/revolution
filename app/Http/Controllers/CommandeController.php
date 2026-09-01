@@ -7,6 +7,9 @@ use App\Mail\CommandeRecue;
 use App\Models\Client;
 use App\Models\Commande;
 use App\Models\Parametre;
+use App\Models\User;
+use Filament\Notifications\Actions\Action as NotificationAction;
+use Filament\Notifications\Notification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -68,7 +71,41 @@ class CommandeController extends Controller
             ]);
         }
 
+        $this->notifierNouvelleCommande($commande);
+
         return redirect()->route('commande.confirmation', $commande->reference);
+    }
+
+    /**
+     * Alerte la gérante dans l'Espace RÉVOLUTION : cloche de notifications
+     * Filament (persistante, relisible) + son joué côté navigateur si le
+     * tableau de bord est ouvert (resources/js/notification-son.js interroge
+     * périodiquement le nombre de notifications non lues).
+     */
+    private function notifierNouvelleCommande(Commande $commande): void
+    {
+        $commande->loadMissing('client');
+        $collection = $commande->estMyVerse() ? 'MY VERSE' : 'Autre collection';
+
+        try {
+            Notification::make()
+                ->title('Nouvelle commande RÉVOLUTION')
+                ->body("{$commande->client->nom} — {$collection}")
+                ->icon('heroicon-o-shopping-bag')
+                ->iconColor($commande->estMyVerse() ? 'gold' : 'primary')
+                ->actions([
+                    NotificationAction::make('voir')
+                        ->label('Voir la commande')
+                        ->url(route('filament.admin.resources.commandes.view', $commande))
+                        ->markAsRead(),
+                ])
+                ->sendToDatabase(User::all());
+        } catch (Throwable $e) {
+            Log::error('Échec de la notification de nouvelle commande RÉVOLUTION', [
+                'commande' => $commande->reference,
+                'erreur' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function show(string $reference): View
