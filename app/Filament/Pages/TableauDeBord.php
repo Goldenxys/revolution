@@ -92,13 +92,59 @@ class TableauDeBord extends Page implements HasTable
      */
     public function indicateurs(): array
     {
-        $commandesDuJour = Commande::query()->whereDate('created_at', $this->date);
+        return $this->indicateursPour($this->date);
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function indicateursPour(string $date): array
+    {
+        $commandesDuJour = Commande::query()->whereDate('created_at', $date);
 
         return [
             'commandes' => (clone $commandesDuJour)->count(),
-            'nouveaux_clients' => Client::query()->whereDate('premiere_commande_at', $this->date)->count(),
+            'nouveaux_clients' => Client::query()->whereDate('premiere_commande_at', $date)->count(),
             'my_verse' => (clone $commandesDuJour)->where('collection', 'my_verse')->count(),
             'total_frais' => (int) (clone $commandesDuJour)->sum('frais_livraison'),
+        ];
+    }
+
+    /**
+     * Indicateurs du jour affiché, chacun accompagné d'un delta réel (jamais
+     * inventé) par rapport à la veille de ce même jour — calculé depuis les
+     * commandes effectivement enregistrées, pas un pourcentage fabriqué.
+     *
+     * @return array<string, array{valeur: int, delta: int, sens: string, libelle_delta: string}>
+     */
+    public function indicateursAvecTendance(): array
+    {
+        $actuels = $this->indicateurs();
+        $veille = $this->indicateursPour($this->carbonDate()->copy()->subDay()->toDateString());
+
+        $construire = function (int $valeur, int $valeurVeille, bool $enFrancs = false): array {
+            $delta = $valeur - $valeurVeille;
+            $sens = $delta > 0 ? 'hausse' : ($delta < 0 ? 'baisse' : 'stable');
+
+            $texteDelta = match (true) {
+                $delta === 0 => 'stable vs hier',
+                $delta > 0 => '+'.($enFrancs ? Francais::frais($delta) : $delta).' vs hier',
+                default => '−'.($enFrancs ? Francais::frais(abs($delta)) : abs($delta)).' vs hier',
+            };
+
+            return [
+                'valeur' => $valeur,
+                'delta' => $delta,
+                'sens' => $sens,
+                'libelle_delta' => $texteDelta,
+            ];
+        };
+
+        return [
+            'commandes' => $construire($actuels['commandes'], $veille['commandes']),
+            'nouveaux_clients' => $construire($actuels['nouveaux_clients'], $veille['nouveaux_clients']),
+            'my_verse' => $construire($actuels['my_verse'], $veille['my_verse']),
+            'total_frais' => $construire($actuels['total_frais'], $veille['total_frais'], enFrancs: true),
         ];
     }
 
