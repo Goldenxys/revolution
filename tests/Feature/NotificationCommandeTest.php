@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
@@ -41,6 +42,27 @@ class NotificationCommandeTest extends TestCase
         $notification = $gerante->unreadNotifications()->first();
         $this->assertSame('Nouvelle commande RÉVOLUTION', $notification->data['title']);
         $this->assertStringContainsString('Aya Kouassi', $notification->data['body']);
+    }
+
+    public function test_la_notification_narrive_pas_en_file_dattente(): void
+    {
+        // La classe de notification de Filament implémente ShouldQueue par
+        // défaut : sans précaution, la notification attendrait le prochain
+        // passage du worker de file d'attente (le cron, sur cet hébergement
+        // mutualisé) au lieu d'apparaître immédiatement sur le tableau de
+        // bord ouvert. Elle doit être écrite tout de suite, sans passer par
+        // la table jobs — voir CommandeController::notifierNouvelleCommande().
+        Mail::fake();
+
+        User::factory()->create();
+
+        $this->post(route('commande.store'), $this->donneesCommande());
+
+        $tachesEnAttente = DB::table('jobs')
+            ->where('payload', 'like', '%DatabaseNotification%')
+            ->count();
+
+        $this->assertSame(0, $tachesEnAttente);
     }
 
     public function test_le_compteur_de_notifications_augmente_apres_une_commande(): void

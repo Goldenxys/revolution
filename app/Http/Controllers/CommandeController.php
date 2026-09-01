@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Illuminate\View\View;
 use Throwable;
 
@@ -79,8 +80,18 @@ class CommandeController extends Controller
     /**
      * Alerte la gérante dans l'Espace RÉVOLUTION : cloche de notifications
      * Filament (persistante, relisible) + son joué côté navigateur si le
-     * tableau de bord est ouvert (resources/js/notification-son.js interroge
-     * périodiquement le nombre de notifications non lues).
+     * tableau de bord est ouvert (resources/js/filament/notification-son.js
+     * interroge périodiquement le nombre de notifications non lues).
+     *
+     * Envoyée avec Notification::sendNow() plutôt que ->sendToDatabase() :
+     * la classe de notification de Filament implémente ShouldQueue, donc un
+     * envoi normal attend le prochain passage du worker de file d'attente
+     * (le cron, au mieux une fois par minute sur cet hébergement mutualisé,
+     * potentiellement jamais si mal configuré) — inutile pour une alerte
+     * censée être vue en direct pendant que le tableau de bord est ouvert.
+     * sendNow() écrit la ligne immédiatement, quel que soit l'état de la
+     * file (le mail, lui, reste volontairement en file : son délai n'a pas
+     * d'importance pour la cliente).
      */
     private function notifierNouvelleCommande(Commande $commande): void
     {
@@ -88,7 +99,7 @@ class CommandeController extends Controller
         $collection = $commande->estMyVerse() ? 'MY VERSE' : 'Autre collection';
 
         try {
-            Notification::make()
+            $notification = Notification::make()
                 ->title('Nouvelle commande RÉVOLUTION')
                 ->body("{$commande->client->nom} — {$collection}")
                 ->icon('heroicon-o-shopping-bag')
@@ -98,8 +109,9 @@ class CommandeController extends Controller
                         ->label('Voir la commande')
                         ->url(route('filament.admin.resources.commandes.view', $commande))
                         ->markAsRead(),
-                ])
-                ->sendToDatabase(User::all());
+                ]);
+
+            NotificationFacade::sendNow(User::all(), $notification->toDatabase());
         } catch (Throwable $e) {
             Log::error('Échec de la notification de nouvelle commande RÉVOLUTION', [
                 'commande' => $commande->reference,
