@@ -49,6 +49,30 @@ class Commande extends Model
                 $commande->reference = static::genererReference();
             }
         });
+
+        // Suppression d'une commande (correction d'erreur de saisie, doublon,
+        // test…) depuis l'Espace RÉVOLUTION : le compteur de fidélité et les
+        // dates de la cliente ne doivent pas rester en décalage avec la
+        // réalité. On ne renumérote pas les autres commandes (l'historique —
+        // mails déjà envoyés, paliers déjà annoncés — reste inchangé), mais
+        // on recalcule bien nb_commandes et les bornes de dates du client.
+        static::deleted(function (Commande $commande) {
+            $client = $commande->client()->first();
+
+            if (! $client) {
+                return;
+            }
+
+            $client->nb_commandes = $client->commandes()->count();
+
+            $bornes = $client->commandes()
+                ->selectRaw('MIN(created_at) as premiere, MAX(created_at) as derniere')
+                ->first();
+
+            $client->premiere_commande_at = $bornes?->premiere;
+            $client->derniere_commande_at = $bornes?->derniere;
+            $client->save();
+        });
     }
 
     public function client(): BelongsTo

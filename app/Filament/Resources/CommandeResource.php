@@ -6,6 +6,13 @@ use App\Filament\Resources\CommandeResource\Pages;
 use App\Models\Commande;
 use App\Support\Francais;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Section as FormSection;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\TimePicker;
+use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
@@ -33,22 +40,118 @@ class CommandeResource extends Resource
     protected static ?int $navigationSort = 20;
 
     /**
-     * Lecture seule pour l'essentiel : pas de création ni d'édition
-     * manuelle depuis Filament au MVP.
+     * Pas de création manuelle depuis Filament : une commande naît toujours
+     * du formulaire public. En revanche, la corriger ou la supprimer en cas
+     * d'erreur de saisie ou de doublon reste nécessaire — voir table().
      */
     public static function canCreate(): bool
     {
         return false;
     }
 
-    public static function canEdit($record): bool
+    public static function form(Form $form): Form
     {
-        return false;
-    }
+        return $form->schema([
+            FormSection::make('Cliente')
+                ->columns(2)
+                ->schema([
+                    TextInput::make('client_nom')
+                        ->label('Nom et prénom')
+                        ->required()
+                        ->maxLength(120)
+                        ->afterStateHydrated(function (TextInput $component, ?Commande $record) {
+                            $component->state($record?->client?->nom);
+                        }),
 
-    public static function canDeleteAny(): bool
-    {
-        return false;
+                    TextInput::make('client_telephone')
+                        ->label('Téléphone')
+                        ->required()
+                        ->maxLength(30)
+                        ->afterStateHydrated(function (TextInput $component, ?Commande $record) {
+                            $component->state($record?->client?->telephone);
+                        }),
+                ]),
+
+            FormSection::make('Article')
+                ->columns(2)
+                ->schema([
+                    Select::make('taille')
+                        ->label('Taille')
+                        ->options(array_combine(config('revolution.tailles'), config('revolution.tailles')))
+                        ->native(false)
+                        ->required(),
+
+                    Select::make('couleur')
+                        ->label('Couleur')
+                        ->options(array_combine(config('revolution.couleurs'), config('revolution.couleurs')))
+                        ->native(false)
+                        ->placeholder('Sans préférence'),
+
+                    TextInput::make('verset_reference')
+                        ->label('Verset')
+                        ->maxLength(120)
+                        ->placeholder('Ex. Philippiens 4:13')
+                        ->visible(fn (?Commande $record) => $record?->estMyVerse() ?? true),
+
+                    Textarea::make('verset_texte')
+                        ->label('Texte du verset')
+                        ->rows(3)
+                        ->columnSpanFull()
+                        ->helperText('Le verset est imprimé tel qu\'écrit ici : vérifiez l\'orthographe.')
+                        ->visible(fn (?Commande $record) => $record?->estMyVerse() ?? true),
+
+                    Select::make('type_article')
+                        ->label('Type d\'article')
+                        ->options(array_combine(config('revolution.types'), config('revolution.types')))
+                        ->native(false)
+                        ->visible(fn (?Commande $record) => ! ($record?->estMyVerse() ?? false)),
+
+                    TextInput::make('nom_article')
+                        ->label('Nom de l\'article')
+                        ->maxLength(190)
+                        ->placeholder('Ex. Couronne d\'épines')
+                        ->visible(fn (?Commande $record) => ! ($record?->estMyVerse() ?? false)),
+                ]),
+
+            FormSection::make('Livraison')
+                ->columns(2)
+                ->schema([
+                    Select::make('commune')
+                        ->label('Commune')
+                        ->options(array_combine(array_keys(config('revolution.communes')), array_keys(config('revolution.communes'))))
+                        ->native(false)
+                        ->required()
+                        ->helperText('Les frais de livraison sont recalculés automatiquement si la commune change.'),
+
+                    TextInput::make('quartier')
+                        ->label('Quartier, point de repère')
+                        ->maxLength(190),
+
+                    Select::make('mode_livraison')
+                        ->label('Mode de livraison')
+                        ->options([
+                            'yango' => 'Yango livraison',
+                            'livreur' => 'Livreur normal',
+                        ])
+                        ->native(false)
+                        ->required()
+                        ->live(),
+
+                    // Champ de remplissage pour garder la grille à 2 colonnes
+                    // propre quand les champs Yango sont masqués.
+                    DatePicker::make('date_souhaitee')
+                        ->label('Date souhaitée')
+                        ->native(false)
+                        ->displayFormat('d/m/Y')
+                        ->visible(fn (Get $get) => $get('mode_livraison') === 'yango'),
+
+                    TimePicker::make('heure_souhaitee')
+                        ->label('Heure souhaitée')
+                        ->native(false)
+                        ->seconds(false)
+                        ->visible(fn (Get $get) => $get('mode_livraison') === 'yango'),
+                ]),
+        ]);
     }
 
     public static function table(Table $table): Table
@@ -140,8 +243,30 @@ class CommandeResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
+
+                // Pas de page 'edit' déclarée dans getPages() : Filament
+                // ouvre donc ce formulaire dans une modale plutôt que de
+                // naviguer vers un écran séparé.
+                Tables\Actions\EditAction::make()
+                    ->modalHeading('Modifier la commande')
+                    ->modalDescription('Corrigez une faute de frappe, une taille ou un verset mal saisi, etc.')
+                    ->modalWidth('2xl')
+                    ->modalSubmitActionLabel('Enregistrer les modifications')
+                    ->using(fn (Commande $record, array $data): Commande => static::sauvegarderModification($record, $data)),
+
+                Tables\Actions\DeleteAction::make()
+                    ->modalHeading('Supprimer cette commande ?')
+                    ->modalDescription('Cette action est définitive. Le compteur de fidélité et les dates de la cliente seront recalculés automatiquement à partir de ses commandes restantes.')
+                    ->modalSubmitActionLabel('Supprimer définitivement'),
             ])
-            ->bulkActions([]);
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->modalHeading('Supprimer les commandes sélectionnées ?')
+                        ->modalDescription('Cette action est définitive pour chacune d\'elles. Les compteurs de fidélité des clientes concernées seront recalculés automatiquement.')
+                        ->modalSubmitActionLabel('Supprimer définitivement'),
+                ]),
+            ]);
     }
 
     public static function infolist(Infolist $infolist): Infolist
@@ -182,6 +307,41 @@ class CommandeResource extends Resource
                             : 'Livreur normal — selon les zones'),
                 ]),
         ]);
+    }
+
+    /**
+     * Logique d'enregistrement partagée par la modale d'édition (table) et
+     * le bouton « Modifier » de l'écran de détail : nom/téléphone reportés
+     * sur la cliente (champs virtuels, absents du modèle Commande), frais
+     * de livraison recalculés si la commune change, date/heure Yango
+     * effacées si le mode de livraison n'est plus Yango.
+     */
+    public static function sauvegarderModification(Commande $record, array $data): Commande
+    {
+        $nomClient = $data['client_nom'] ?? null;
+        $telephoneClient = $data['client_telephone'] ?? null;
+        unset($data['client_nom'], $data['client_telephone']);
+
+        if ($record->client && (filled($nomClient) || filled($telephoneClient))) {
+            $record->client->update(array_filter([
+                'nom' => $nomClient,
+                'telephone' => $telephoneClient,
+            ], fn ($valeur) => filled($valeur)));
+        }
+
+        if (isset($data['commune'])) {
+            $data['frais_livraison'] = config('revolution.communes')[$data['commune']]
+                ?? $record->frais_livraison;
+        }
+
+        if (($data['mode_livraison'] ?? null) !== 'yango') {
+            $data['date_souhaitee'] = null;
+            $data['heure_souhaitee'] = null;
+        }
+
+        $record->update($data);
+
+        return $record;
     }
 
     public static function getPages(): array
