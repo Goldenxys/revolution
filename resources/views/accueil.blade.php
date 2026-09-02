@@ -20,20 +20,23 @@
             <p>Vous bénéficiez ainsi de votre carte de fidélité RÉVOLUTION et des avantages réservés à notre communauté.</p>
         </div>
 
-        {{-- Deux grandes cartes cliquables --}}
+        {{-- Deux grandes cartes cliquables — pointent vers le nouveau parcours
+             catalogue (/commande) depuis la bascule. Les anciennes routes
+             (/commande/my-verse, /commande/autre) restent en ligne une
+             semaine en secours, mais ne sont plus liées depuis ici. --}}
         <div class="space-y-4 sm:space-y-5 mb-12 sm:mb-16">
-            <a href="{{ route('commande.my-verse') }}"
+            <a href="{{ route('commande.catalogue.creer', ['collection' => 'my_verse']) }}"
                class="group block border border-filet border-l-4 border-l-rouille bg-carte px-5 py-6 sm:px-6 sm:py-7 transition hover:border-l-[6px] hover:bg-creme active:scale-[0.99]">
                 <p class="text-xs uppercase tracking-[0.18em] text-or font-semibold mb-2">My Verse</p>
                 <h2 class="text-xl sm:text-2xl font-semibold text-encre mb-1 tracking-tight">Je passe ma commande</h2>
                 <p class="text-sm text-texte-secondaire">Votre tee-shirt, votre verset, écrit par vous.</p>
             </a>
 
-            <a href="{{ route('commande.autre') }}"
+            <a href="{{ route('commande.catalogue.creer') }}"
                class="group block border border-filet border-l-4 border-l-rouille bg-carte px-5 py-6 sm:px-6 sm:py-7 transition hover:border-l-[6px] hover:bg-creme active:scale-[0.99]">
-                <p class="text-xs uppercase tracking-[0.18em] text-or font-semibold mb-2">Autre collection</p>
+                <p class="text-xs uppercase tracking-[0.18em] text-or font-semibold mb-2">Découvrir</p>
                 <h2 class="text-xl sm:text-2xl font-semibold text-encre mb-1 tracking-tight">Je passe ma commande</h2>
-                <p class="text-sm text-texte-secondaire">Tee-shirt, pull, tote bag, chaussette, casquette.</p>
+                <p class="text-sm text-texte-secondaire">Tee-shirts, pulls, chemises, accessoires — toute la collection RÉVOLUTION.</p>
             </a>
         </div>
 

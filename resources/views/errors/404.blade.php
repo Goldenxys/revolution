@@ -24,7 +24,7 @@
                    class="block w-full min-h-[52px] leading-[52px] text-center bg-rouille text-white text-sm uppercase tracking-wide font-medium transition hover:bg-rouille/90 active:scale-[0.99]">
                     Retour à l'accueil
                 </a>
-                <a href="{{ route('commande.my-verse') }}"
+                <a href="{{ route('commande.catalogue.creer') }}"
                    class="block w-full min-h-[52px] leading-[52px] text-center border border-filet text-encre text-sm uppercase tracking-wide font-medium transition hover:border-rouille active:scale-[0.99]">
                     Je passe ma commande
                 </a>
