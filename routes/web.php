@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\Admin\ExportController;
 use App\Http\Controllers\Admin\NotificationSonController;
+use App\Http\Controllers\CatalogueController;
 use App\Http\Controllers\ClientReconnaissanceController;
+use App\Http\Controllers\CommandeCatalogueController;
 use App\Http\Controllers\CommandeController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -10,12 +12,25 @@ use Illuminate\Support\Facades\Route;
 // Écran 1 — Accueil
 Route::view('/', 'accueil')->name('accueil');
 
-// Écran 2 — Formulaires de commande
+// Écran 2 (ancien) — Formulaires de commande à article unique, toujours en
+// ligne pendant la transition vers le nouveau parcours catalogue ci-dessous
+// (voir revolution-mise-a-jour-catalogue.md § 8 : « ne cassez pas le
+// formulaire actuel »). Aucun lien de l'accueil n'y mène plus une fois la
+// bascule faite, mais les URLs restent fonctionnelles en secours.
 Route::get('/commande/my-verse', [CommandeController::class, 'myVerse'])->name('commande.my-verse');
 Route::get('/commande/autre', [CommandeController::class, 'autre'])->name('commande.autre');
 Route::post('/commande', [CommandeController::class, 'store'])->name('commande.store');
 
-// Écran 3 — Confirmation + carte de fidélité
+// Écran 2 (nouveau) — Parcours catalogue : collection → article → taille/
+// couleur → quantité → coordonnées → livraison, avec récapitulatif de prix
+// en direct. Poste sur /commande/panier (et non /commande) pour ne pas
+// entrer en collision avec la route POST /commande ci-dessus tant que les
+// deux formulaires coexistent.
+Route::get('/commande', [CommandeCatalogueController::class, 'creer'])->name('commande.catalogue.creer');
+Route::post('/commande/panier', [CommandeCatalogueController::class, 'store'])->name('commande.catalogue.store');
+Route::get('/commande/catalogue.json', [CatalogueController::class, 'catalogueJson'])->name('commande.catalogue.json');
+
+// Écran 3 — Confirmation + carte de fidélité (commune aux deux parcours)
 Route::get('/commande/{reference}', [CommandeController::class, 'show'])
     ->where('reference', '[A-Z0-9]{6}')
     ->name('commande.confirmation');
