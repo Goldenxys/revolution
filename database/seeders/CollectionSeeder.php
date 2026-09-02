@@ -8,9 +8,11 @@ use Illuminate\Database\Seeder;
 class CollectionSeeder extends Seeder
 {
     /**
-     * Les deux collections du parcours actuel, avec les mêmes slugs que les
-     * valeurs de la colonne `commandes.collection` ('my_verse' / 'autre') :
-     * le futur backfill des commandes legacy pourra s'y raccrocher.
+     * `my_verse` et `autre` portent les mêmes slugs que les valeurs de la
+     * colonne legacy `commandes.collection` : le futur backfill des
+     * commandes de l'ancien formulaire pourra s'y raccrocher. `autre` reste
+     * un panier legacy — le catalogue réel (CatalogueInitialSeeder) range
+     * ses articles dans les collections suivantes, plus fines.
      */
     public function run(): void
     {
@@ -23,11 +25,39 @@ class CollectionSeeder extends Seeder
                 'ordre' => 0,
             ],
             [
-                'slug' => 'autre',
-                'nom' => 'Autre collection',
-                'description' => 'Les pièces de la collection courante, sans personnalisation de verset.',
+                'slug' => 'prestige-premium',
+                'nom' => 'Prestige premium',
+                'description' => 'Chemises et surchemises haut de gamme.',
                 'verset_requis' => false,
                 'ordre' => 1,
+            ],
+            [
+                'slug' => 'identite',
+                'nom' => 'Identité',
+                'description' => 'Affirmer qui l\'on est en Christ.',
+                'verset_requis' => false,
+                'ordre' => 2,
+            ],
+            [
+                'slug' => 'prestige',
+                'nom' => 'Prestige',
+                'description' => 'La gamme Prestige.',
+                'verset_requis' => false,
+                'ordre' => 3,
+            ],
+            [
+                'slug' => 'christ-au-centre',
+                'nom' => 'Christ au centre',
+                'description' => 'La collection courante, tee-shirts, pulls et accessoires.',
+                'verset_requis' => false,
+                'ordre' => 4,
+            ],
+            [
+                'slug' => 'autre',
+                'nom' => 'Autre collection',
+                'description' => 'Panier historique de l\'ancien formulaire de commande — ne reçoit plus de nouveaux articles.',
+                'verset_requis' => false,
+                'ordre' => 99,
             ],
         ];
 
