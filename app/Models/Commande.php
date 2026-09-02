@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Commande extends Model
 {
@@ -33,6 +34,13 @@ class Commande extends Model
         'date_souhaitee',
         'heure_souhaitee',
         'numero_commande_client',
+        'sous_total',
+        'remise_pourcentage',
+        'remise_montant',
+        'total',
+        'statut',
+        'notes',
+        'utilise_catalogue',
     ];
 
     protected $casts = [
@@ -40,6 +48,11 @@ class Commande extends Model
         'numero_commande_client' => 'integer',
         'date_souhaitee' => 'date',
         'heure_souhaitee' => 'datetime:H:i',
+        'sous_total' => 'integer',
+        'remise_pourcentage' => 'integer',
+        'remise_montant' => 'integer',
+        'total' => 'integer',
+        'utilise_catalogue' => 'boolean',
     ];
 
     protected static function booted(): void
@@ -80,6 +93,11 @@ class Commande extends Model
         return $this->belongsTo(Client::class);
     }
 
+    public function lignes(): HasMany
+    {
+        return $this->hasMany(CommandeLigne::class);
+    }
+
     /**
      * Génère une référence courte (6 caractères, majuscules + chiffres,
      * sans caractères ambigus) et garantit son unicité.
@@ -110,14 +128,52 @@ class Commande extends Model
     }
 
     /**
-     * Libellé de l'article pour affichage (tableau de bord, mail).
+     * Libellé de l'article pour affichage (tableau de bord, mail, export).
+     * Une commande née du parcours catalogue (utilise_catalogue) a ses
+     * articles dans `lignes` plutôt que dans les colonnes legacy ci-dessous
+     * — dans ce cas on résume le panier. Sinon, comportement legacy inchangé.
      */
     public function getLibelleArticleAttribute(): string
     {
+        if ($this->relationLoaded('lignes') ? $this->lignes->isNotEmpty() : $this->lignes()->exists()) {
+            $lignes = $this->relationLoaded('lignes') ? $this->lignes : $this->lignes()->get();
+
+            if ($lignes->count() === 1) {
+                $ligne = $lignes->first();
+
+                return trim($ligne->article_nom
+                    .($ligne->taille_libelle ? " · {$ligne->taille_libelle}" : '')
+                    .($ligne->couleur_nom ? " · {$ligne->couleur_nom}" : '')
+                    .($ligne->quantite > 1 ? " ×{$ligne->quantite}" : ''));
+            }
+
+            return $lignes->count().' articles';
+        }
+
         if ($this->estMyVerse()) {
             return trim('Tee-shirt MY VERSE'.($this->couleur ? " · {$this->couleur}" : ''));
         }
 
         return trim(($this->type_article ?? 'Article').' « '.($this->nom_article ?? '').' »');
+    }
+
+    /**
+     * Resomme sous_total/total de la commande depuis ses lignes actuelles —
+     * appelé après une correction de ligne depuis l'Espace RÉVOLUTION.
+     * remise_pourcentage n'est jamais recalculé ici : il reflète le palier
+     * de fidélité de la cliente au moment de l'achat, pas le contenu du
+     * panier, et ne doit donc jamais bouger après coup.
+     */
+    public function recalculerMontants(): void
+    {
+        $sousTotal = $this->lignes()->get()->sum(fn (CommandeLigne $ligne) => $ligne->prix_unitaire * $ligne->quantite);
+        $remisePourcentage = $this->remise_pourcentage ?? 0;
+        $remiseMontant = (int) round(($sousTotal + $this->frais_livraison) * $remisePourcentage / 100);
+
+        $this->update([
+            'sous_total' => $sousTotal,
+            'remise_montant' => $remiseMontant,
+            'total' => $sousTotal + $this->frais_livraison - $remiseMontant,
+        ]);
     }
 }
