@@ -82,6 +82,13 @@
     {{-- Graphique 14 derniers jours --}}
     @livewire(\App\Filament\Widgets\CommandesRecentesWidget::class)
 
+    {{-- Articles épuisés, seulement s'il y en a --}}
+    @if (\App\Filament\Widgets\ArticlesEpuisesWidget::canView())
+        <div class="-mx-4 sm:mx-0 overflow-x-auto">
+            @livewire(\App\Filament\Widgets\ArticlesEpuisesWidget::class)
+        </div>
+    @endif
+
     {{-- Fichier clients --}}
     <div class="-mx-4 sm:mx-0 overflow-x-auto">
         @livewire(\App\Filament\Widgets\ClientsWidget::class)
