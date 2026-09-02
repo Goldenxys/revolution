@@ -58,6 +58,10 @@ class CollectionSeeder extends Seeder
                 'description' => 'Panier historique de l\'ancien formulaire de commande — ne reçoit plus de nouveaux articles.',
                 'verset_requis' => false,
                 'ordre' => 99,
+                // Inactive : n'existe que pour le backfill des commandes de
+                // l'ancien formulaire, ne doit jamais apparaître comme choix
+                // dans le nouveau parcours catalogue (0 article réel dedans).
+                'active' => false,
             ],
         ];
 
@@ -69,7 +73,7 @@ class CollectionSeeder extends Seeder
                     'description' => $collection['description'],
                     'verset_requis' => $collection['verset_requis'],
                     'ordre' => $collection['ordre'],
-                    'active' => true,
+                    'active' => $collection['active'] ?? true,
                 ]
             );
         }
