@@ -115,6 +115,38 @@ class CommandeCatalogueTest extends TestCase
         Mail::assertQueued(CommandeRecue::class);
     }
 
+    /**
+     * Régression : l'email de notification à la gérante lisait encore
+     * uniquement les colonnes legacy (type_article, taille, couleur…),
+     * toutes NULL pour une commande catalogue — le mail partait avec une
+     * ligne « Article » vide. Trouvé en soumettant une vraie commande en
+     * production. Corrigé en rendant Commande::libelleCollection() et le
+     * template mail conscients de `lignes`.
+     */
+    public function test_le_mail_de_notification_affiche_bien_larticle_dune_commande_catalogue(): void
+    {
+        ['article' => $article, 'taille' => $taille, 'couleur' => $couleur] = $this->creerArticleDisponible(7000);
+
+        $this->post(route('commande.catalogue.store'), $this->donneesBase([
+            'article_id' => $article->id,
+            'taille_id' => $taille->id,
+            'couleur_id' => $couleur->id,
+            'quantite' => 2,
+        ]));
+
+        $commande = Commande::with(['client', 'lignes.article.collection'])->first();
+        $mail = new CommandeRecue($commande);
+
+        $html = $mail->render();
+
+        $this->assertStringContainsString('Article test', $html);
+        $this->assertStringContainsString('M', $html);
+        $this->assertStringContainsString('Blanc', $html);
+        $this->assertStringContainsString('×2', $html);
+        $this->assertStringContainsString('Test', $html); // nom de la collection (voir creerArticleDisponible())
+        $this->assertStringContainsString('15 000', $html); // total = 14 000 (sous-total) + 1 000 (frais Yopougon)
+    }
+
     public function test_le_prix_est_toujours_recalcule_depuis_larticle_jamais_depuis_la_requete(): void
     {
         Mail::fake();

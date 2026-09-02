@@ -20,15 +20,13 @@ class CommandeRecue extends Mailable implements ShouldQueue
      */
     public function __construct(public Commande $commande)
     {
-        $this->commande->loadMissing('client');
+        $this->commande->loadMissing(['client', 'lignes.article.collection']);
     }
 
     public function envelope(): Envelope
     {
-        $collection = $this->commande->estMyVerse() ? 'MY VERSE' : 'Autre collection';
-
         return new Envelope(
-            subject: "Super Nouvelle commande — {$this->commande->client->nom} · {$collection}",
+            subject: "Super Nouvelle commande — {$this->commande->client->nom} · {$this->commande->libelleCollection()}",
         );
     }
 

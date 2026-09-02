@@ -1,16 +1,29 @@
 @php
     use App\Support\Francais;
 
-    $collectionLabel = $commande->estMyVerse()
-        ? 'MY VERSE BY RÉVOLUTION – 2026'
-        : 'Autre collection RÉVOLUTION – 2026';
+    $estCatalogue = $commande->utilise_catalogue;
+    $premiereLigne = $estCatalogue ? $commande->lignes->first() : null;
 
-    $tailleLigne = $commande->taille ? ' · taille '.$commande->taille : '';
-    $couleurLigne = $commande->couleur ? ' · couleur '.$commande->couleur : '';
+    if ($estCatalogue) {
+        $articleLigne = $commande->lignes
+            ->map(function ($ligne) {
+                $details = collect([$ligne->taille_libelle, $ligne->couleur_nom])->filter()->implode(' · ');
 
-    $articleLigne = $commande->estMyVerse()
-        ? trim('Tee-shirt MY VERSE'.$tailleLigne.$couleurLigne)
-        : trim(($commande->type_article ?? 'Article').' « '.($commande->nom_article ?? '').' »'.$tailleLigne.$couleurLigne);
+                return trim($ligne->article_nom.($details ? " · {$details}" : '').($ligne->quantite > 1 ? " ×{$ligne->quantite}" : ''));
+            })
+            ->implode('<br>');
+    } else {
+        $tailleLigne = $commande->taille ? ' · taille '.$commande->taille : '';
+        $couleurLigne = $commande->couleur ? ' · couleur '.$commande->couleur : '';
+
+        $articleLigne = $commande->estMyVerse()
+            ? trim('Tee-shirt MY VERSE'.$tailleLigne.$couleurLigne)
+            : trim(($commande->type_article ?? 'Article').' « '.($commande->nom_article ?? '').' »'.$tailleLigne.$couleurLigne);
+    }
+
+    $verset = $estCatalogue ? $premiereLigne?->verset : $commande->verset_texte;
+    $referenceVerset = $estCatalogue ? null : $commande->verset_reference;
+    $modele = $estCatalogue ? $premiereLigne?->modele : null;
 
     $livraisonLigne = $commande->estYango()
         ? 'Yango — '.Francais::dateHeureLongue($commande->date_souhaitee, $commande->heure_souhaitee)
@@ -36,7 +49,7 @@ Commande {{ $commande->reference }}
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:1.7;">
 <tr><td style="color:#7A6E63;width:170px;vertical-align:top;padding:6px 0;border-bottom:1px solid #E9E0D5;">Collection</td>
-<td style="padding:6px 0;border-bottom:1px solid #E9E0D5;">{{ $collectionLabel }}</td></tr>
+<td style="padding:6px 0;border-bottom:1px solid #E9E0D5;">{{ $commande->libelleCollection() }}</td></tr>
 
 <tr><td style="color:#7A6E63;vertical-align:top;padding:6px 0;border-bottom:1px solid #E9E0D5;">Client</td>
 <td style="padding:6px 0;border-bottom:1px solid #E9E0D5;">{{ $client->nom }} ({{ Francais::ordinal($commande->numero_commande_client) }} commande)</td></tr>
@@ -48,14 +61,19 @@ Commande {{ $commande->reference }}
 <td style="padding:6px 0;border-bottom:1px solid #E9E0D5;">{{ $client->email ?: '—' }}</td></tr>
 
 <tr><td style="color:#7A6E63;vertical-align:top;padding:6px 0;border-bottom:1px solid #E9E0D5;">Article</td>
-<td style="padding:6px 0;border-bottom:1px solid #E9E0D5;">{{ $articleLigne }}</td></tr>
+<td style="padding:6px 0;border-bottom:1px solid #E9E0D5;">{!! $articleLigne !!}</td></tr>
 
-@if($commande->estMyVerse())
+@if($modele)
+<tr><td style="color:#7A6E63;vertical-align:top;padding:6px 0;border-bottom:1px solid #E9E0D5;">Modèle</td>
+<td style="padding:6px 0;border-bottom:1px solid #E9E0D5;">{{ $modele }}</td></tr>
+@endif
+
+@if($referenceVerset || $verset)
 <tr><td style="color:#7A6E63;vertical-align:top;padding:6px 0;border-bottom:1px solid #E9E0D5;">Verset</td>
-<td style="padding:6px 0;border-bottom:1px solid #E9E0D5;">{{ $commande->verset_reference ?: '—' }}</td></tr>
+<td style="padding:6px 0;border-bottom:1px solid #E9E0D5;">{{ $referenceVerset ?: '—' }}</td></tr>
 
 <tr><td style="color:#7A6E63;vertical-align:top;padding:6px 0;border-bottom:1px solid #E9E0D5;">Texte du verset</td>
-<td style="padding:6px 0;border-bottom:1px solid #E9E0D5;">{{ $commande->verset_texte ?: '—' }}</td></tr>
+<td style="padding:6px 0;border-bottom:1px solid #E9E0D5;">{{ $verset ?: '—' }}</td></tr>
 @endif
 
 <tr><td style="color:#7A6E63;vertical-align:top;padding:6px 0;border-bottom:1px solid #E9E0D5;">Livraison</td>
@@ -66,6 +84,16 @@ Commande {{ $commande->reference }}
 
 <tr><td style="color:#7A6E63;vertical-align:top;padding:6px 0;border-bottom:1px solid #E9E0D5;">Quartier / repère</td>
 <td style="padding:6px 0;border-bottom:1px solid #E9E0D5;">{{ $commande->quartier ?: '—' }}</td></tr>
+
+@if($commande->total !== null)
+<tr><td style="color:#7A6E63;vertical-align:top;padding:6px 0;border-bottom:1px solid #E9E0D5;">Total</td>
+<td style="padding:6px 0;border-bottom:1px solid #E9E0D5;">
+{{ Francais::frais($commande->total) }}
+@if($commande->remise_pourcentage)
+    (dont −{{ $commande->remise_pourcentage }} % fidélité, soit −{{ Francais::frais($commande->remise_montant) }})
+@endif
+</td></tr>
+@endif
 </table>
 
 <p style="margin:20px 0 0;font-size:12px;color:#7A6E63;">

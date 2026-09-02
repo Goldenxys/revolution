@@ -122,6 +122,35 @@ class Commande extends Model
         return $this->collection === 'my_verse';
     }
 
+    /**
+     * Nom de collection à afficher (mail, notification) — la vraie
+     * collection du catalogue pour une commande catalogue (déduite de sa
+     * première ligne), le libellé legacy sinon. Centralisé ici pour que
+     * CommandeRecue, ResoutClientEtNotifie et le futur export ne
+     * réimplémentent pas chacun leur propre logique.
+     */
+    public function libelleCollection(): string
+    {
+        if ($this->utilise_catalogue) {
+            return $this->lignes->first()?->article?->collection?->nom ?? 'RÉVOLUTION';
+        }
+
+        return $this->estMyVerse() ? 'MY VERSE' : 'Autre collection';
+    }
+
+    /**
+     * Vrai si la commande relève de la collection « My verse » — legacy ou
+     * catalogue — utile pour les touches visuelles (icône dorée, verset).
+     */
+    public function estCollectionMyVerse(): bool
+    {
+        if ($this->utilise_catalogue) {
+            return $this->lignes->first()?->article?->collection?->slug === 'my_verse';
+        }
+
+        return $this->estMyVerse();
+    }
+
     public function estYango(): bool
     {
         return $this->mode_livraison === 'yango';

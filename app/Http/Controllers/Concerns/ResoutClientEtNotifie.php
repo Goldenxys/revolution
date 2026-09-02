@@ -100,7 +100,8 @@ trait ResoutClientEtNotifie
     {
         $commande->loadMissing(['client', 'lignes.article.collection']);
 
-        [$libelleCollection, $doree] = $this->libelleEtCouleurCollection($commande);
+        $libelleCollection = $commande->libelleCollection();
+        $doree = $commande->estCollectionMyVerse();
 
         try {
             $notification = Notification::make()
@@ -122,20 +123,5 @@ trait ResoutClientEtNotifie
                 'erreur' => $e->getMessage(),
             ]);
         }
-    }
-
-    /**
-     * @return array{0: string, 1: bool} libellé de collection à afficher, et
-     *                                    si l'icône doit être dorée (My verse)
-     */
-    private function libelleEtCouleurCollection(Commande $commande): array
-    {
-        if ($commande->utilise_catalogue) {
-            $collection = $commande->lignes->first()?->article?->collection;
-
-            return [$collection?->nom ?? 'RÉVOLUTION', $collection?->slug === 'my_verse'];
-        }
-
-        return [$commande->estMyVerse() ? 'MY VERSE' : 'Autre collection', $commande->estMyVerse()];
     }
 }
