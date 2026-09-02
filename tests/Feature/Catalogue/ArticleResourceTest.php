@@ -30,6 +30,32 @@ class ArticleResourceTest extends TestCase
         $this->actingAs($gerante)->get($this->chemin('/articles'))->assertOk();
     }
 
+    /**
+     * Régression : la table ne doit pas planter une fois qu'elle contient
+     * un article avec des variantes — le badge de disponibilité affiche
+     * un état sous forme de tableau ['disponibles'=>x,'total'=>y], que
+     * ->badge() peut interpréter à tort comme plusieurs valeurs à
+     * afficher séparément si on ne le convertit pas d'abord en chaîne.
+     */
+    public function test_lecran_articles_saffiche_sans_erreur_avec_un_article_et_ses_variantes(): void
+    {
+        $gerante = User::factory()->create();
+        $article = $this->creerArticleAvecType(gereTailles: true, gereCouleurs: true);
+        $taille = Taille::create(['libelle' => 'M']);
+        $couleur = Couleur::create(['nom' => 'Blanc']);
+
+        ArticleVariante::create([
+            'article_id' => $article->id,
+            'taille_id' => $taille->id,
+            'couleur_id' => $couleur->id,
+            'disponible' => true,
+        ]);
+
+        $this->actingAs($gerante)->get($this->chemin('/articles'))
+            ->assertOk()
+            ->assertSee('1/1');
+    }
+
     public function test_les_pages_creer_et_modifier_un_article_se_chargent_sans_erreur(): void
     {
         $gerante = User::factory()->create();

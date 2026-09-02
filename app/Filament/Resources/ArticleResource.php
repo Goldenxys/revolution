@@ -170,13 +170,26 @@ class ArticleResource extends Resource
 
                 TextColumn::make('disponibilite')
                     ->label('Disponibilité')
-                    ->state(fn (Article $record) => $record->ratioDisponibilite())
-                    ->formatStateUsing(fn (array $state) => "{$state['disponibles']}/{$state['total']}")
+                    // ->badge() traite un état array comme plusieurs badges à
+                    // afficher côte à côte (ex. colonnes multi-valeurs) : on
+                    // renvoie donc directement une chaîne "8/12" plutôt que
+                    // le tableau ['disponibles'=>8,'total'=>12], sans quoi
+                    // Filament éclate ce tableau et rappelle formatStateUsing/
+                    // color une fois par valeur (avec un int, pas un array).
+                    ->state(function (Article $record) {
+                        $ratio = $record->ratioDisponibilite();
+
+                        return "{$ratio['disponibles']}/{$ratio['total']}";
+                    })
                     ->badge()
-                    ->color(fn (array $state) => match (true) {
-                        $state['disponibles'] === 0 => 'danger',
-                        $state['disponibles'] < $state['total'] => 'warning',
-                        default => 'success',
+                    ->color(function (Article $record) {
+                        $ratio = $record->ratioDisponibilite();
+
+                        return match (true) {
+                            $ratio['disponibles'] === 0 => 'danger',
+                            $ratio['disponibles'] < $ratio['total'] => 'warning',
+                            default => 'success',
+                        };
                     }),
 
                 ToggleColumn::make('active')
