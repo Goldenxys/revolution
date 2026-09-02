@@ -35,4 +35,14 @@ class TypeArticle extends Model
     {
         return $query->where('active', true);
     }
+
+    /**
+     * Garde-fou admin : un type utilisé par au moins un article ne peut pas
+     * être supprimé (contrainte restrictOnDelete en base), il est seulement
+     * désactivable.
+     */
+    public function estSupprimable(): bool
+    {
+        return ! $this->articles()->exists();
+    }
 }
