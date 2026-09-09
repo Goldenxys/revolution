@@ -8,6 +8,7 @@ use App\Http\Controllers\CommandeCatalogueController;
 use App\Http\Controllers\CommandeController;
 use App\Http\Controllers\DemandeController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RecuController;
 use Illuminate\Support\Facades\Route;
 
 // Écran 1 — Accueil
@@ -47,6 +48,12 @@ Route::get('/commande/demande/{reference}/merci', [DemandeController::class, 'co
 Route::get('/commande/{reference}', [CommandeController::class, 'show'])
     ->where('reference', '[A-Z0-9]{6}')
     ->name('commande.confirmation');
+
+// Reçu PDF public d'une commande validée (§7.3) — lien porté par un jeton,
+// non indexé, valable 90 jours.
+Route::get('/recu/{token}', [RecuController::class, 'afficher'])
+    ->middleware('throttle:30,1')
+    ->name('recu.afficher');
 
 // Reconnaissance client en direct (formulaire)
 Route::get('/client/reconnaissance', ClientReconnaissanceController::class)

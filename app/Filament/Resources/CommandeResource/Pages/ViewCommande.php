@@ -3,11 +3,14 @@
 namespace App\Filament\Resources\CommandeResource\Pages;
 
 use App\Filament\Resources\CommandeResource;
+use App\Mail\RecuCommande;
 use App\Models\Commande;
 use App\Models\CommandeJournal;
 use Filament\Actions;
 use Filament\Forms\Components\Textarea;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Illuminate\Support\Facades\Mail;
 
 class ViewCommande extends ViewRecord
 {
@@ -16,6 +19,35 @@ class ViewCommande extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('recu_pdf')
+                ->label('Reçu PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->visible(fn (Commande $r) => filled($r->recu_token))
+                ->url(fn (Commande $r) => $r->lienRecuPublic())
+                ->openUrlInNewTab(),
+
+            Actions\Action::make('recu_whatsapp')
+                ->label('Envoyer par WhatsApp')
+                ->icon('heroicon-o-chat-bubble-left-right')
+                ->color('gray')
+                ->visible(fn (Commande $r) => filled($r->recu_token) && filled($r->client?->telephone))
+                ->url(fn (Commande $r) => $r->lienWhatsappRecu())
+                ->openUrlInNewTab()
+                ->after(fn (Commande $r) => CommandeJournal::consigner($r, 'whatsapp_envoye', [], auth()->id())),
+
+            Actions\Action::make('recu_email')
+                ->label('Renvoyer le reçu par e-mail')
+                ->icon('heroicon-o-envelope')
+                ->color('gray')
+                ->requiresConfirmation()
+                ->visible(fn (Commande $r) => filled($r->recu_token) && filled($r->client?->email))
+                ->action(function (Commande $r) {
+                    Mail::to($r->client->email)->queue(new RecuCommande($r));
+                    CommandeJournal::consigner($r, 'email_envoye', ['destinataire' => 'cliente', 'type' => 'recu_renvoi'], auth()->id());
+                    Notification::make()->title('Reçu renvoyé à '.$r->client->email)->success()->send();
+                }),
+
             Actions\Action::make('avancer_statut')
                 ->label(fn (Commande $r) => $r->statut === 'en_livraison' ? 'Marquer livrée' : 'Passer en livraison')
                 ->icon('heroicon-o-truck')

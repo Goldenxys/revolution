@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Events\CommandeValidee;
+use App\Support\Francais;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -276,6 +277,51 @@ class Commande extends Model
             'remise_montant' => $remiseMontant,
             'total' => $sousTotal + $this->frais_livraison - $remiseMontant,
         ]);
+    }
+
+    /**
+     * Lien public du reçu PDF (§7.3), porté par le jeton — null tant que la
+     * commande n'a pas été validée.
+     */
+    public function lienRecuPublic(): ?string
+    {
+        return $this->recu_token ? route('recu.afficher', $this->recu_token) : null;
+    }
+
+    /**
+     * Message court prêt à coller dans WhatsApp : récap + lien signé vers le
+     * reçu. Un lien wa.me ne peut pas transporter de pièce jointe — d'où le
+     * lien (§7.3).
+     */
+    public function messageWhatsappRecu(): string
+    {
+        $this->loadMissing('lignes');
+
+        $lignes = $this->lignes
+            ->map(fn (CommandeLigne $l) => '• '.$l->article_nom
+                .(collect([$l->taille_libelle, $l->couleur_nom])->filter()->isNotEmpty()
+                    ? ' ('.collect([$l->taille_libelle, $l->couleur_nom])->filter()->implode(' · ').')'
+                    : '')
+                .($l->quantite > 1 ? " ×{$l->quantite}" : ''))
+            ->implode("\n");
+
+        return "Bonjour {$this->client->nom}, voici le reçu de votre commande {$this->reference} :\n\n"
+            ."{$lignes}\n\n"
+            .'Chiffre d\'affaires : '.Francais::frais($this->total_articles)."\n"
+            .'Livraison : '.Francais::frais($this->frais_livraison)."\n"
+            .'À payer : '.Francais::frais($this->total_a_payer)."\n\n"
+            .'Votre reçu : '.$this->lienRecuPublic();
+    }
+
+    /**
+     * URL wa.me prête à l'emploi vers la cliente, message pré-rempli.
+     */
+    public function lienWhatsappRecu(): string
+    {
+        $numero = preg_replace('/\D+/', '', $this->client->telephone ?? '');
+        $numero = str_starts_with($numero, '225') ? $numero : '225'.ltrim($numero, '0');
+
+        return 'https://wa.me/'.$numero.'?text='.rawurlencode($this->messageWhatsappRecu());
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Filament\Resources\DemandeResource\Pages\ComposerDemande;
 use App\Http\Controllers\Concerns\ResoutClientEtNotifie;
 use App\Http\Requests\StoreDemandeRequest;
 use App\Mail\DemandeDeposee;
+use App\Mail\DemandeRecue;
 use App\Models\Article;
 use App\Models\Commande;
 use App\Models\CommandeJournal;
@@ -77,6 +78,7 @@ class DemandeController extends Controller
         });
 
         $this->notifierGerante($commande);
+        $this->accuserReceptionCliente($commande);
 
         return redirect()->route('commande.demande.merci', $commande->reference);
     }
@@ -108,6 +110,27 @@ class DemandeController extends Controller
             Mail::to(Parametre::emailReception())->queue(new DemandeDeposee($commande, $urlCompositeur));
         } catch (\Throwable $e) {
             Log::error('Échec de mise en file du mail « demande à valider »', [
+                'commande' => $commande->reference,
+                'erreur' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * « Votre demande est bien reçue » — seulement si la cliente a laissé
+     * un e-mail. Aucun montant ferme (§7.1, ligne 1).
+     */
+    private function accuserReceptionCliente(Commande $commande): void
+    {
+        if (blank($commande->client?->email)) {
+            return;
+        }
+
+        try {
+            Mail::to($commande->client->email)->queue(new DemandeRecue($commande));
+            CommandeJournal::consigner($commande, 'email_envoye', ['destinataire' => 'cliente', 'type' => 'accuse_demande']);
+        } catch (\Throwable $e) {
+            Log::error('Accusé de réception cliente non envoyé', [
                 'commande' => $commande->reference,
                 'erreur' => $e->getMessage(),
             ]);
