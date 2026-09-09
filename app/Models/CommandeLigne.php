@@ -10,6 +10,8 @@ class CommandeLigne extends Model
     protected $fillable = [
         'commande_id',
         'article_id',
+        'taille_id',
+        'couleur_id',
         'article_nom',
         'taille_libelle',
         'couleur_nom',
@@ -32,6 +34,16 @@ class CommandeLigne extends Model
     public function article(): BelongsTo
     {
         return $this->belongsTo(Article::class);
+    }
+
+    public function taille(): BelongsTo
+    {
+        return $this->belongsTo(Taille::class);
+    }
+
+    public function couleur(): BelongsTo
+    {
+        return $this->belongsTo(Couleur::class);
     }
 
     public function getSousTotalAttribute(): int

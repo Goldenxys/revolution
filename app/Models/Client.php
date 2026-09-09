@@ -19,17 +19,42 @@ class Client extends Model
         'nb_commandes',
         'premiere_commande_at',
         'derniere_commande_at',
+        'statut',
+        'numero_client',
+        'ca_cumule',
     ];
 
     protected $casts = [
         'nb_commandes' => 'integer',
         'premiere_commande_at' => 'datetime',
         'derniere_commande_at' => 'datetime',
+        'ca_cumule' => 'integer',
     ];
 
     public function commandes(): HasMany
     {
         return $this->hasMany(Commande::class);
+    }
+
+    /**
+     * Numéro client stable, affiché sur la carte de fidélité, attribué dès
+     * la première demande déposée (avant même toute validation). Basé sur
+     * l'id auto-incrémenté : pas de table de compteur séparée, jamais de
+     * collision.
+     */
+    public function genererNumeroClient(): string
+    {
+        return sprintf('REV-C-%04d', $this->id);
+    }
+
+    /**
+     * Vrai dès la première commande VALIDÉE (nb_commandes ne compte que
+     * celles-ci depuis la V2) — sert au badge « nouveau / fidèle » de
+     * l'écran « Demandes à valider ».
+     */
+    public function estFidele(): bool
+    {
+        return $this->nb_commandes >= 1;
     }
 
     /**

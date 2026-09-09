@@ -15,20 +15,23 @@ use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Throwable;
 
 /**
- * Logique partagée par les deux formulaires de commande (ancien : type_article
- * libre ; nouveau : catalogue) — reconnaissance client, mail de notification
- * et alerte Filament. Extrait de CommandeController pour que les deux
- * chemins ne divergent jamais silencieusement pendant la période où les
- * deux formulaires coexistent (voir routes/web.php).
+ * Logique partagée par les formulaires de commande (ancien : type_article
+ * libre, toujours final immédiatement ; V2 : demande, finalisée seulement à
+ * la validation par la gérante) — reconnaissance/création client, mail de
+ * notification et alerte Filament. Extrait de CommandeController pour que
+ * les différents chemins ne divergent jamais silencieusement.
  */
 trait ResoutClientEtNotifie
 {
     /**
-     * Retrouve un client existant par téléphone (clé sur les 8 derniers
-     * chiffres), puis par nom normalisé en repli, sinon en crée un nouveau.
-     * Incrémente systématiquement son compteur de commandes.
+     * Recherche/création pure d'un client par téléphone (clé sur les 8
+     * derniers chiffres), puis par nom normalisé en repli — sans aucun
+     * effet de bord sur ses compteurs de fidélité. `resoudreClient()`
+     * (ancien formulaire) et `resoudreProspect()` (V2) s'appuient tous les
+     * deux dessus, puis appliquent chacun leur propre logique
+     * d'incrémentation.
      */
-    private function resoudreClient(array $donnees): Client
+    private function trouverOuCreerClient(array $donnees): Client
     {
         $cle = Client::cleDepuisTelephone($donnees['telephone']);
 
@@ -58,10 +61,43 @@ trait ResoutClientEtNotifie
         }
 
         $client->commune = $donnees['commune'];
+
+        return $client;
+    }
+
+    /**
+     * Ancien formulaire libre (/commande/my-verse, /commande/autre) :
+     * comportement inchangé — une commande y est toujours immédiatement
+     * finale, donc le compteur de fidélité s'incrémente dès la soumission.
+     */
+    private function resoudreClient(array $donnees): Client
+    {
+        $client = $this->trouverOuCreerClient($donnees);
+
         $client->nb_commandes = ($client->nb_commandes ?? 0) + 1;
         $client->premiere_commande_at = $client->premiere_commande_at ?? now();
         $client->derniere_commande_at = now();
         $client->save();
+
+        return $client;
+    }
+
+    /**
+     * Formulaire de demande V2 (/commande) : la cliente dépose une demande,
+     * pas une commande finale — son compteur de fidélité ne bouge donc pas
+     * ici. Il ne s'incrémente qu'à la validation par la gérante
+     * (Commande::valider()). On attribue simplement un numero_client dès la
+     * première demande, pour la carte de fidélité affichée immédiatement.
+     */
+    private function resoudreProspect(array $donnees): Client
+    {
+        $client = $this->trouverOuCreerClient($donnees);
+        $client->save();
+
+        if (blank($client->numero_client)) {
+            $client->numero_client = $client->genererNumeroClient();
+            $client->save();
+        }
 
         return $client;
     }
@@ -95,13 +131,19 @@ trait ResoutClientEtNotifie
      * inutile pour une alerte censée être vue en direct pendant que le
      * tableau de bord est ouvert. Le mail, lui, reste volontairement en
      * file : son délai n'a pas d'importance pour la cliente.
+     *
+     * @param  string|null  $url  Lien porté par l'action « Voir » de la
+     *                            notification — la fiche commande par
+     *                            défaut, ou le compositeur pour une
+     *                            demande V2 fraîchement déposée.
      */
-    private function notifierNouvelleCommande(Commande $commande): void
+    private function notifierNouvelleCommande(Commande $commande, ?string $url = null): void
     {
         $commande->loadMissing(['client', 'lignes.article.collection']);
 
         $libelleCollection = $commande->libelleCollection();
         $doree = $commande->estCollectionMyVerse();
+        $url ??= route('filament.admin.resources.commandes.view', $commande);
 
         try {
             $notification = Notification::make()
@@ -112,7 +154,7 @@ trait ResoutClientEtNotifie
                 ->actions([
                     NotificationAction::make('voir')
                         ->label('Voir la commande')
-                        ->url(route('filament.admin.resources.commandes.view', $commande))
+                        ->url($url)
                         ->markAsRead(),
                 ]);
 
