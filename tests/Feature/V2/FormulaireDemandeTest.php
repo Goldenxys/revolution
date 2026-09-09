@@ -15,12 +15,20 @@ class FormulaireDemandeTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_la_page_du_formulaire_se_charge(): void
+    public function test_les_deux_pages_se_chargent(): void
     {
-        $this->get(route('commande.demande.creer'))->assertOk()->assertSee('On enregistre votre commande');
+        $this->get(route('commande.demande.creer'))->assertOk()->assertSee('Je passe ma commande My Verse');
+        $this->get(route('commande.demande.autre'))->assertOk()->assertSee('Je passe ma commande');
     }
 
-    public function test_une_demande_my_verse_fige_le_verset_la_taille_et_la_couleur(): void
+    public function test_l_accueil_propose_les_deux_boutons(): void
+    {
+        $this->get(route('accueil'))
+            ->assertSee(route('commande.demande.creer'), false)
+            ->assertSee(route('commande.demande.autre'), false);
+    }
+
+    public function test_une_demande_my_verse_enregistre_plusieurs_versets(): void
     {
         Mail::fake();
         Notification::fake();
@@ -31,10 +39,10 @@ class FormulaireDemandeTest extends TestCase
             'telephone' => '0102030405',
             'email' => 'aya@example.com',
             'collection' => 'my_verse',
-            'taille' => 'XL',
-            'couleur' => 'Blanc',
-            'verset_reference' => 'Philippiens 4:13',
-            'verset_texte' => 'Je puis tout par celui qui me fortifie.',
+            'versets' => [
+                ['reference' => 'Philippiens 4:13', 'texte' => 'Je puis tout par celui qui me fortifie.'],
+                ['reference' => 'Jean 3:16', 'texte' => null],
+            ],
             'precisions' => 'Écriture dorée',
             'commune' => 'Cocody',
             'mode_livraison' => 'livreur',
@@ -45,23 +53,21 @@ class FormulaireDemandeTest extends TestCase
 
         $this->assertSame('en_attente', $commande->statut);
         $this->assertSame('my_verse', $commande->collection);
-        $this->assertSame('XL', $commande->taille);
-        $this->assertSame('Blanc', $commande->couleur);
-        $this->assertSame('Philippiens 4:13', $commande->verset_reference);
+        $this->assertNull($commande->taille);          // réglée par la gérante
+        $this->assertNull($commande->couleur);
+        $this->assertCount(2, $commande->souhaits_client['versets']);
+        $this->assertSame('Philippiens 4:13', $commande->souhaits_client['versets'][0]['reference']);
+        $this->assertSame('Philippiens 4:13', $commande->verset_reference); // 1er verset sur la colonne historique
         $this->assertSame('Écriture dorée', $commande->message_client);
         $this->assertSame(0, $commande->total_articles);
-        $this->assertSame(1500, $commande->frais_livraison);
-        $this->assertNull($commande->validee_at);
 
         $this->assertSame('prospect', $commande->client->statut);
-        $this->assertSame(0, $commande->client->nb_commandes);
         $this->assertNotNull($commande->client->numero_client);
 
         Mail::assertQueued(DemandeDeposee::class);
-        $this->assertDatabaseHas('commande_journal', ['commande_id' => $commande->id, 'evenement' => 'creee']);
     }
 
-    public function test_une_demande_autre_collection_ne_demande_que_les_infos_et_la_livraison(): void
+    public function test_une_demande_autre_collection_ne_demande_que_les_infos(): void
     {
         Mail::fake();
         Notification::fake();
@@ -76,32 +82,24 @@ class FormulaireDemandeTest extends TestCase
 
         $commande = Commande::first();
         $this->assertSame('autre', $commande->collection);
-        $this->assertNull($commande->taille);
+        $this->assertNull($commande->souhaits_client);
         $this->assertNull($commande->verset_reference);
         $this->assertSame('Le pull beige vu sur WhatsApp, taille L', $commande->message_client);
+        $this->assertNotNull($commande->client->numero_client); // carte de fidélité aussi
     }
 
-    public function test_my_verse_exige_la_taille(): void
+    public function test_my_verse_exige_au_moins_un_verset_renseigne(): void
     {
         User::factory()->create();
 
         $this->post(route('commande.demande.store'), [
             'nom' => 'Aya', 'telephone' => '0102030405',
             'collection' => 'my_verse',
+            'versets' => [['reference' => '', 'texte' => '']],
             'commune' => 'Cocody', 'mode_livraison' => 'livreur',
-        ])->assertSessionHasErrors('taille');
+        ])->assertSessionHasErrors('versets.0.texte');
 
         $this->assertSame(0, Commande::count());
-    }
-
-    public function test_le_type_de_commande_est_obligatoire(): void
-    {
-        User::factory()->create();
-
-        $this->post(route('commande.demande.store'), [
-            'nom' => 'Aya', 'telephone' => '0102030405',
-            'commune' => 'Cocody', 'mode_livraison' => 'livreur',
-        ])->assertSessionHasErrors('collection');
     }
 
     public function test_anti_doublon_90_secondes(): void

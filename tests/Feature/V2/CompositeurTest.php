@@ -53,10 +53,12 @@ class CompositeurTest extends TestCase
             'commune' => 'Cocody', 'frais_livraison' => 1500, 'mode_livraison' => 'livreur',
             'statut' => 'en_attente',
             'collection' => 'my_verse',
-            'taille' => 'XL',
-            'couleur' => 'Blanc',
             'verset_reference' => 'Philippiens 4:13',
             'message_client' => 'écriture dorée',
+            'souhaits_client' => ['collection' => 'my_verse', 'versets' => [
+                ['reference' => 'Philippiens 4:13', 'texte' => 'Je puis tout par celui qui me fortifie.'],
+                ['reference' => 'Jean 3:16', 'texte' => null],
+            ]],
         ]);
 
         return [$client, $commande];
@@ -114,21 +116,22 @@ class CompositeurTest extends TestCase
         $this->assertSame(3, $cat['variante']->refresh()->stock); // 5 − 2
     }
 
-    public function test_le_compositeur_pre_remplit_taille_couleur_et_verset_pour_my_verse(): void
+    public function test_le_compositeur_cree_une_ligne_par_verset_avec_le_verset_pre_rempli(): void
     {
         $gerante = User::factory()->create();
-        $cat = $this->catalogue(); // crée la taille XL et la couleur Blanc
+        $this->catalogue();
         [, $commande] = $this->demande();
 
         Livewire::actingAs($gerante)
             ->test(ComposerDemande::class, ['record' => $commande->getKey()])
-            ->assertFormSet(function (array $state) use ($cat) {
-                $ligne = $state['lignes'][array_key_first($state['lignes'])];
+            ->assertFormSet(function (array $state) {
+                $lignes = array_values($state['lignes']);
 
-                return $ligne['taille_id'] === $cat['taille']->id
-                    && $ligne['couleur_id'] === $cat['couleur']->id
-                    && str_contains((string) $ligne['verset'], 'Philippiens 4:13')
-                    && $ligne['article_id'] === null; // la gérante choisit l'article
+                return count($lignes) === 2
+                    && str_contains((string) $lignes[0]['verset'], 'Philippiens 4:13')
+                    && str_contains((string) $lignes[1]['verset'], 'Jean 3:16')
+                    && $lignes[0]['article_id'] === null   // la gérante choisit l'article
+                    && $lignes[0]['taille_id'] === null;   // et la taille
             });
     }
 

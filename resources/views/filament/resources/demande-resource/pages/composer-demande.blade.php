@@ -50,26 +50,19 @@
                 <x-slot name="description">Ce qu'elle a indiqué — la vente s'est faite dans la conversation.</x-slot>
 
                 @if ($c->estMyVerse())
-                    <p class="text-sm font-medium mb-2">Tee-shirt My Verse</p>
-                    <dl class="space-y-2 text-sm">
-                        <div class="flex justify-between gap-3">
-                            <dt class="text-gray-500">Taille</dt>
-                            <dd class="text-right">{{ $c->taille ?: '— à préciser' }}</dd>
-                        </div>
-                        <div class="flex justify-between gap-3">
-                            <dt class="text-gray-500">Couleur</dt>
-                            <dd class="text-right">{{ $c->couleur ?: 'sans préférence' }}</dd>
-                        </div>
-                        @if ($c->verset_reference)
-                            <div class="flex justify-between gap-3">
-                                <dt class="text-gray-500">Verset</dt>
-                                <dd class="text-right">{{ $c->verset_reference }}</dd>
-                            </div>
-                        @endif
-                    </dl>
-                    @if ($c->verset_texte)
-                        <p class="mt-2 rounded-lg bg-gray-50 dark:bg-white/5 px-3 py-2 text-sm whitespace-pre-line">{{ $c->verset_texte }}</p>
-                    @endif
+                    @php $versets = $c->souhaits_client['versets'] ?? []; @endphp
+                    <p class="text-sm font-medium mb-2">{{ count($versets) }} tee-shirt My Verse — taille et couleur à régler ici</p>
+                    <ol class="space-y-2 text-sm">
+                        @foreach ($versets as $i => $v)
+                            <li class="rounded-lg bg-gray-50 dark:bg-white/5 px-3 py-2">
+                                <span class="text-gray-500">Tee-shirt {{ $i + 1 }} —</span>
+                                <span class="font-medium">{{ $v['reference'] ?: 'verset sans référence' }}</span>
+                                @if (!empty($v['texte']))
+                                    <p class="text-gray-600 dark:text-gray-300 mt-1 whitespace-pre-line">{{ $v['texte'] }}</p>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ol>
                 @else
                     <p class="text-sm font-medium">Un autre article de la collection</p>
                     <p class="text-sm text-gray-500 mt-1">Reprenez l'article et le prix convenus sur WhatsApp.</p>

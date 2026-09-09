@@ -85,7 +85,9 @@ class DemandeResource extends Resource
 
                 TextColumn::make('demande')
                     ->label('Demande')
-                    ->state(fn (Commande $c) => $c->estMyVerse() ? 'Tee-shirt My Verse' : 'Autre article')
+                    ->state(fn (Commande $c) => $c->estMyVerse()
+                        ? count($c->souhaits_client['versets'] ?? []).' tee-shirt My Verse'
+                        : 'Autre article')
                     ->description(fn (Commande $c) => static::resumeSouhaits($c))
                     ->wrap(),
 
@@ -107,19 +109,18 @@ class DemandeResource extends Resource
 
     /**
      * Résumé de ce que la cliente a saisi (jamais des lignes fermes —
-     * celles-ci n'existent qu'à la validation). Pour un tee-shirt My Verse :
-     * taille, couleur, verset. Pour un autre article : ses précisions.
+     * celles-ci n'existent qu'à la validation). Pour My Verse : la liste
+     * des versets. Pour un autre article : ses précisions.
      */
     public static function resumeSouhaits(Commande $commande): string
     {
         if ($commande->estMyVerse()) {
-            $parts = array_filter([
-                $commande->taille ? 'taille '.$commande->taille : null,
-                $commande->couleur,
-                $commande->verset_reference ?: ($commande->verset_texte ? Str::limit($commande->verset_texte, 40) : null),
-            ]);
+            $versets = collect($commande->souhaits_client['versets'] ?? [])
+                ->map(fn (array $v) => $v['reference'] ?: Str::limit($v['texte'] ?? '', 40))
+                ->filter()
+                ->implode(' | ');
 
-            $resume = implode(' · ', $parts) ?: 'à préciser avec la cliente';
+            $resume = $versets ?: 'verset à préciser avec la cliente';
 
             return $commande->message_client
                 ? $resume.' — « '.Str::limit($commande->message_client, 60).' »'

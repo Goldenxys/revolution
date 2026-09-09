@@ -20,19 +20,32 @@ use Illuminate\View\View;
  * Parcours de demande V2 (§4) : « Le client ne passe plus une commande. Il
  * dépose une demande. La commande naît quand la gérante la valide. »
  *
- * Le formulaire est court, textuel, sans aucune image d'article. Le client
- * ne choisit plus d'article : il indique s'il veut un tee-shirt My Verse
- * (et fournit alors son verset / sa taille / sa couleur) ou un autre
- * article de la collection — la gérante compose la commande depuis son
- * panneau à la validation. Aucun total ferme n'est enregistré.
+ * Deux entrées distinctes, choisies sur l'accueil :
+ *   • My Verse — la cliente fournit un ou plusieurs versets (référence +
+ *     texte). Elle ne choisit ni taille ni couleur : la gérante les règle
+ *     à la validation.
+ *   • Autre collection — la cliente laisse seulement ses coordonnées et sa
+ *     livraison. La gérante reprend l'article convenu sur WhatsApp.
+ *
+ * Aucun total ferme n'est enregistré : tous les montants restent à zéro
+ * tant que la gérante n'a pas validé.
  */
 class DemandeController extends Controller
 {
     use ResoutClientEtNotifie;
 
-    public function creer(): View
+    public function creerMyVerse(): View
     {
         return view('commande.demande', [
+            'type' => 'my_verse',
+            'communes' => config('revolution.communes'),
+        ]);
+    }
+
+    public function creerAutre(): View
+    {
+        return view('commande.demande', [
+            'type' => 'autre',
             'communes' => config('revolution.communes'),
         ]);
     }
@@ -42,7 +55,17 @@ class DemandeController extends Controller
         $donnees = $request->validated();
         $estMyVerse = $donnees['collection'] === 'my_verse';
 
-        $commande = DB::transaction(function () use ($donnees, $estMyVerse) {
+        $versets = $estMyVerse
+            ? collect($donnees['versets'] ?? [])
+                ->map(fn (array $v) => [
+                    'reference' => filled($v['reference'] ?? null) ? trim($v['reference']) : null,
+                    'texte' => filled($v['texte'] ?? null) ? trim($v['texte']) : null,
+                ])
+                ->values()
+                ->all()
+            : [];
+
+        $commande = DB::transaction(function () use ($donnees, $estMyVerse, $versets) {
             $client = $this->resoudreProspect($donnees);
 
             // Frais recalculés côté serveur, jamais depuis le formulaire.
@@ -51,13 +74,17 @@ class DemandeController extends Controller
             $commande = Commande::create([
                 'client_id' => $client->id,
                 'collection' => $donnees['collection'],
-                // Détails My Verse fournis par le client — figés tels quels,
-                // ce sont la trace de sa demande (§3.1). Vides pour « autre » :
-                // la gérante reprend l'article convenu sur WhatsApp.
-                'taille' => $estMyVerse ? ($donnees['taille'] ?? null) : null,
-                'couleur' => $estMyVerse ? ($donnees['couleur'] ?? null) : null,
-                'verset_reference' => $estMyVerse ? ($donnees['verset_reference'] ?? null) : null,
-                'verset_texte' => $estMyVerse ? ($donnees['verset_texte'] ?? null) : null,
+                // Le premier verset alimente aussi les colonnes historiques
+                // (affichage, mails). La liste complète — trace de la demande,
+                // jamais modifiée — vit dans souhaits_client.
+                'verset_reference' => $versets[0]['reference'] ?? null,
+                'verset_texte' => $versets[0]['texte'] ?? null,
+                // Taille et couleur : décidées par la gérante à la validation.
+                'taille' => null,
+                'couleur' => null,
+                'souhaits_client' => $estMyVerse
+                    ? ['collection' => 'my_verse', 'versets' => $versets]
+                    : null,
                 'commune' => $donnees['commune'],
                 'frais_livraison' => $fraisLivraison,
                 'quartier' => $donnees['quartier'] ?? null,
@@ -78,6 +105,7 @@ class DemandeController extends Controller
             CommandeJournal::consigner($commande, 'creee', [
                 'canal' => 'formulaire_demande_v2',
                 'collection' => $donnees['collection'],
+                'nb_versets' => count($versets),
             ]);
 
             return $commande;

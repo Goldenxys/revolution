@@ -20,15 +20,15 @@ function formatFrancs(montant) {
 }
 
 /**
- * Composant Alpine du formulaire de demande V2 (§4). Court, textuel, sans
- * aucune image. Le client ne choisit plus d'article : il indique s'il veut
- * un tee-shirt My Verse (et fournit alors son verset, sa taille, sa
- * couleur) ou un autre article de la collection (la gérante composera la
- * commande depuis son panneau). Les frais de livraison sont rappelés, mais
- * aucun total ferme n'est calculé côté client.
+ * Composant Alpine du formulaire de demande V2 (§4). Deux parcours :
+ *   • My Verse — répéteur de versets (un tee-shirt = un verset), la
+ *     cliente ne choisit ni taille ni couleur (la gérante s'en charge).
+ *   • Autre collection — seulement coordonnées, précisions et livraison.
+ * Les frais de livraison sont rappelés, aucun total ferme n'est calculé.
  */
 export default function commandeDemande(config) {
     return {
+        type: config.type || 'my_verse',
         communes: config.communes || {},
         urlReconnaissance: config.urlReconnaissance,
 
@@ -42,15 +42,33 @@ export default function commandeDemande(config) {
         heureSouhaitee: config.heureSouhaitee || '',
         precisions: config.precisions || '',
 
-        collection: config.collection || '',
-        taille: config.taille || '',
-        couleur: config.couleur || '',
-        versetReference: config.versetReference || '',
-        versetTexte: config.versetTexte || '',
+        versets: [],
 
         clientConnu: false,
         clientMessage: '',
         envoi: false,
+
+        init() {
+            const anciens = config.versets;
+            this.versets = Array.isArray(anciens) && anciens.length
+                ? anciens.map((v) => ({ reference: v.reference ?? '', texte: v.texte ?? '' }))
+                : [this.versetVide()];
+        },
+
+        versetVide() {
+            return { reference: '', texte: '' };
+        },
+
+        ajouterVerset() {
+            this.versets.push(this.versetVide());
+        },
+
+        retirerVerset(index) {
+            this.versets.splice(index, 1);
+            if (this.versets.length === 0) {
+                this.versets.push(this.versetVide());
+            }
+        },
 
         get tarifCommune() {
             return this.commune && this.communes[this.commune] !== undefined

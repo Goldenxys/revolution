@@ -378,30 +378,29 @@ class ComposerDemande extends Page implements HasForms
     }
 
     /**
-     * Une seule ligne de départ. La cliente ne choisit plus d'article : la
-     * gérante le fait ici. On pré-remplit ce que la cliente a fourni pour
-     * un tee-shirt My Verse — taille, couleur (résolues vers le catalogue)
-     * et verset — pour éviter à la gérante de le retaper.
+     * Lignes de départ. La cliente ne choisit plus d'article — la gérante
+     * le fait ici, ainsi que la taille et la couleur. Pour My Verse, on
+     * crée une ligne par verset demandé, avec le verset pré-rempli.
      *
      * @return array<int, array<string, mixed>>
      */
     protected function lignesInitiales(): array
     {
-        $ligne = $this->ligneVide();
-
         if ($this->record->estMyVerse()) {
-            $taille = $this->resoudreTaille($this->record->taille);
-            $couleur = $this->resoudreCouleur($this->record->couleur);
+            $versets = collect($this->record->souhaits_client['versets'] ?? []);
 
-            $ligne['taille_id'] = $taille?->id;
-            $ligne['couleur_id'] = $couleur?->id;
-            $ligne['verset'] = trim(collect([
-                $this->record->verset_reference,
-                $this->record->verset_texte,
-            ])->filter()->implode(' — ')) ?: null;
+            if ($versets->isNotEmpty()) {
+                return $versets->map(function (array $v) {
+                    $ligne = $this->ligneVide();
+                    $ligne['verset'] = trim(collect([$v['reference'] ?? null, $v['texte'] ?? null])
+                        ->filter()->implode(' — ')) ?: null;
+
+                    return $ligne;
+                })->all();
+            }
         }
 
-        return [$ligne];
+        return [$this->ligneVide()];
     }
 
     /** @return array<string, mixed> */
@@ -411,20 +410,6 @@ class ComposerDemande extends Page implements HasForms
             'article_id' => null, 'taille_id' => null, 'couleur_id' => null,
             'quantite' => 1, 'prix_unitaire' => null, 'verset' => null, 'modele' => null,
         ];
-    }
-
-    protected function resoudreTaille(?string $libelle): ?Taille
-    {
-        return filled($libelle)
-            ? Taille::query()->where('libelle', trim($libelle))->first()
-            : null;
-    }
-
-    protected function resoudreCouleur(?string $nom): ?Couleur
-    {
-        return filled($nom)
-            ? Couleur::query()->where('nom', 'like', trim($nom))->first()
-            : null;
     }
 
     public function getTitle(): string|Htmlable

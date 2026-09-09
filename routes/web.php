@@ -23,11 +23,15 @@ Route::get('/commande/my-verse', [CommandeController::class, 'myVerse'])->name('
 Route::get('/commande/autre', [CommandeController::class, 'autre'])->name('commande.autre');
 Route::post('/commande', [CommandeController::class, 'store'])->name('commande.store');
 
-// Écran 2 (V2) — La demande : formulaire court, textuel, sans images. La
-// cliente dépose des souhaits, la commande naît à la validation par la
-// gérante (revolution-v2-commande-validee-par-la-gerante.md §4). C'est
-// désormais LE parcours : macommanderevolution.store/commande.
-Route::get('/commande', [DemandeController::class, 'creer'])->name('commande.demande.creer');
+// Écran 2 (V2) — La demande : deux parcours courts, sans images. La cliente
+// dépose une demande, la commande naît à la validation par la gérante
+// (revolution-v2-commande-validee-par-la-gerante.md §4).
+//   • My Verse : elle indique un ou plusieurs versets (référence + texte).
+//     Taille et couleur sont réglées par la gérante à la validation.
+//   • Autre collection : elle laisse seulement ses coordonnées et la
+//     livraison ; la gérante reprend l'article convenu sur WhatsApp.
+Route::get('/commande', [DemandeController::class, 'creerMyVerse'])->name('commande.demande.creer');
+Route::get('/commande/autre-collection', [DemandeController::class, 'creerAutre'])->name('commande.demande.autre');
 Route::post('/commande/demande', [DemandeController::class, 'store'])
     ->middleware('throttle:5,60')
     ->name('commande.demande.store');

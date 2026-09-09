@@ -9,11 +9,12 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Formulaire de demande V2 (§4.3) : la cliente dépose une demande courte.
- * Elle ne choisit plus d'article — elle dit seulement s'il s'agit d'un
- * tee-shirt My Verse (et fournit alors verset / taille / couleur) ou d'un
- * autre article. La gérante compose et valide ensuite. Le serveur ne
- * calcule aucun total ferme.
+ * Formulaire de demande V2 (§4.3). Deux cas :
+ *   • My Verse — la cliente renseigne un ou plusieurs versets (référence
+ *     et/ou texte). Ni taille ni couleur : la gérante les règle.
+ *   • Autre collection — seulement coordonnées + livraison.
+ *
+ * Le serveur ne calcule aucun total ferme.
  */
 class StoreDemandeRequest extends FormRequest
 {
@@ -35,10 +36,9 @@ class StoreDemandeRequest extends FormRequest
 
             // Bloc 2 — Votre commande
             'collection' => ['required', Rule::in(['my_verse', 'autre'])],
-            'taille' => ['nullable', 'required_if:collection,my_verse', Rule::in(config('revolution.tailles'))],
-            'couleur' => ['nullable', Rule::in(config('revolution.couleurs'))],
-            'verset_reference' => ['nullable', 'string', 'max:120'],
-            'verset_texte' => ['nullable', 'string', 'max:2000'],
+            'versets' => ['exclude_unless:collection,my_verse', 'required', 'array', 'min:1', 'max:10'],
+            'versets.*.reference' => ['nullable', 'string', 'max:120'],
+            'versets.*.texte' => ['nullable', 'string', 'max:2000'],
             'precisions' => ['nullable', 'string', 'max:500'],
 
             // Bloc 3 — La livraison (inchangé)
@@ -68,9 +68,10 @@ class StoreDemandeRequest extends FormRequest
             'nom.required' => 'Merci d\'indiquer votre nom et prénom.',
             'telephone.required' => 'Merci d\'indiquer votre numéro de téléphone.',
             'email.email' => 'Cet e-mail n\'a pas l\'air valide.',
-            'collection.required' => 'Choisissez le type de commande.',
-            'collection.in' => 'Choisissez le type de commande.',
-            'taille.required_if' => 'Merci de choisir la taille de votre tee-shirt My Verse.',
+            'collection.required' => 'Type de commande manquant.',
+            'collection.in' => 'Type de commande manquant.',
+            'versets.required' => 'Indiquez au moins un verset pour votre tee-shirt My Verse.',
+            'versets.min' => 'Indiquez au moins un verset pour votre tee-shirt My Verse.',
             'commune.required' => 'Merci de choisir votre commune de livraison.',
             'commune.in' => 'Cette commune n\'est pas dans notre liste de livraison.',
             'mode_livraison.required' => 'Merci de choisir un mode de livraison.',
@@ -88,6 +89,15 @@ class StoreDemandeRequest extends FormRequest
                 $validator->errors()->add('telephone', 'Le numéro doit contenir au moins 8 chiffres.');
 
                 return;
+            }
+
+            // Chaque verset doit porter une référence OU un texte.
+            if ($this->input('collection') === 'my_verse') {
+                foreach ((array) $this->input('versets', []) as $i => $verset) {
+                    if (blank($verset['reference'] ?? null) && blank($verset['texte'] ?? null)) {
+                        $validator->errors()->add("versets.{$i}.texte", 'Indiquez la référence ou le texte de ce verset.');
+                    }
+                }
             }
 
             // Protection anti-doublon : un même téléphone ne peut pas

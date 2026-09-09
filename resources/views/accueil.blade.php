@@ -20,17 +20,22 @@
             <p>Vous bénéficiez ainsi de votre carte de fidélité RÉVOLUTION et des avantages réservés à notre communauté.</p>
         </div>
 
-        {{-- La bascule V2 : un seul parcours, /commande. On a d'abord échangé
-             sur WhatsApp, le site enregistre proprement ce qui a été convenu.
-             Les anciennes routes (/commande/my-verse, /commande/autre,
-             /commande/catalogue) restent en ligne deux semaines en secours,
-             mais ne sont plus liées depuis ici. --}}
+        {{-- Deux parcours V2. On a d'abord échangé sur WhatsApp ; le site
+             enregistre proprement ce qui a été convenu, la gérante valide
+             ensuite. --}}
         <div class="space-y-4 sm:space-y-5 mb-12 sm:mb-16">
             <a href="{{ route('commande.demande.creer') }}"
                class="group block border border-filet border-l-4 border-l-rouille bg-carte px-5 py-6 sm:px-6 sm:py-7 transition hover:border-l-[6px] hover:bg-creme active:scale-[0.99]">
-                <p class="text-xs uppercase tracking-[0.18em] text-or font-semibold mb-2">Ma commande</p>
-                <h2 class="text-xl sm:text-2xl font-semibold text-encre mb-1 tracking-tight">On enregistre ma commande</h2>
-                <p class="text-sm text-texte-secondaire">Reprenez ce qui a été convenu sur WhatsApp — la gérante confirme le montant juste après.</p>
+                <p class="text-xs uppercase tracking-[0.18em] text-or font-semibold mb-2">My Verse</p>
+                <h2 class="text-xl sm:text-2xl font-semibold text-encre mb-1 tracking-tight">Je passe ma commande My Verse</h2>
+                <p class="text-sm text-texte-secondaire">Votre tee-shirt, votre verset, écrit par vous.</p>
+            </a>
+
+            <a href="{{ route('commande.demande.autre') }}"
+               class="group block border border-filet border-l-4 border-l-rouille bg-carte px-5 py-6 sm:px-6 sm:py-7 transition hover:border-l-[6px] hover:bg-creme active:scale-[0.99]">
+                <p class="text-xs uppercase tracking-[0.18em] text-or font-semibold mb-2">Autre collection</p>
+                <h2 class="text-xl sm:text-2xl font-semibold text-encre mb-1 tracking-tight">Je passe ma commande pour une autre collection</h2>
+                <p class="text-sm text-texte-secondaire">Tee-shirts, pulls, accessoires — tout le reste de RÉVOLUTION.</p>
             </a>
         </div>
 
