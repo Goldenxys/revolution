@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\CommandeResource\Pages;
 use App\Models\Commande;
+use App\Models\CommandeJournal;
 use App\Support\Francais;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Section as FormSection;
@@ -47,6 +48,17 @@ class CommandeResource extends Resource
     public static function canCreate(): bool
     {
         return false;
+    }
+
+    /**
+     * Les demandes V2 encore `en_attente` vivent dans « Demandes à valider »
+     * (DemandeResource), pas ici : « Commandes » ne montre que ce qui est
+     * réellement une commande — formulaire libre (toujours final) et
+     * demandes déjà validées.
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->where('statut', '!=', 'en_attente');
     }
 
     public static function form(Form $form): Form
@@ -245,6 +257,32 @@ class CommandeResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
+
+                Tables\Actions\Action::make('avancer_statut')
+                    ->label(fn (Commande $r) => $r->statut === 'en_livraison' ? 'Marquer livrée' : 'Passer en livraison')
+                    ->icon('heroicon-o-truck')
+                    ->color('gray')
+                    ->requiresConfirmation()
+                    ->visible(fn (Commande $r) => in_array($r->statut, ['validee', 'en_livraison'], true))
+                    ->action(function (Commande $r) {
+                        $r->update(['statut' => $r->statut === 'en_livraison' ? 'livree' : 'en_livraison']);
+                        CommandeJournal::consigner($r, 'statut_'.$r->statut, [], auth()->id());
+                    }),
+
+                Tables\Actions\Action::make('annuler')
+                    ->label('Annuler')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->visible(fn (Commande $r) => $r->validee_at !== null && $r->statut !== 'annulee')
+                    ->form([
+                        Textarea::make('motif')
+                            ->label('Motif de l\'annulation')
+                            ->required()
+                            ->helperText('Le chiffre d\'affaires, la fidélité et le stock seront défaits. La commande est conservée, jamais supprimée.'),
+                    ])
+                    ->requiresConfirmation()
+                    ->modalHeading('Annuler cette commande validée ?')
+                    ->action(fn (Commande $r, array $data) => $r->annuler($data['motif'], auth()->user())),
 
                 // Pas de page 'edit' déclarée dans getPages() : Filament
                 // ouvre donc ce formulaire dans une modale plutôt que de
