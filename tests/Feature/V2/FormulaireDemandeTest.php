@@ -3,11 +3,8 @@
 namespace Tests\Feature\V2;
 
 use App\Mail\DemandeDeposee;
-use App\Models\Article;
 use App\Models\Client;
-use App\Models\CollectionCatalogue;
 use App\Models\Commande;
-use App\Models\TypeArticle;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -18,86 +15,93 @@ class FormulaireDemandeTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function article(): Article
-    {
-        $collection = CollectionCatalogue::create(['nom' => 'MY VERSE', 'slug' => 'my_verse']);
-        $type = TypeArticle::create(['nom' => 'Tee-shirt', 'slug' => 'tee', 'gere_tailles' => true, 'gere_couleurs' => true]);
-
-        return Article::create([
-            'collection_id' => $collection->id, 'type_article_id' => $type->id,
-            'nom' => 'Tee-shirt Couronne d\'épines', 'slug' => 'tee-couronne', 'prix' => 7000,
-        ]);
-    }
-
-    private function donnees(array $override = []): array
-    {
-        return array_merge([
-            'nom' => 'Aya Kouassi',
-            'telephone' => '0102030405',
-            'commune' => 'Cocody',
-            'mode_livraison' => 'livreur',
-            'souhaits' => [
-                ['article_id' => $this->article()->id, 'taille' => 'XL', 'couleur' => 'Blanc', 'quantite' => 2],
-            ],
-        ], $override);
-    }
-
     public function test_la_page_du_formulaire_se_charge(): void
     {
-        $this->article();
         $this->get(route('commande.demande.creer'))->assertOk()->assertSee('On enregistre votre commande');
     }
 
-    public function test_une_demande_cree_une_commande_en_attente_sans_aucun_montant(): void
+    public function test_une_demande_my_verse_fige_le_verset_la_taille_et_la_couleur(): void
     {
         Mail::fake();
         Notification::fake();
         User::factory()->create();
 
-        $article = $this->article();
-
         $response = $this->post(route('commande.demande.store'), [
             'nom' => 'Aya Kouassi',
             'telephone' => '0102030405',
             'email' => 'aya@example.com',
+            'collection' => 'my_verse',
+            'taille' => 'XL',
+            'couleur' => 'Blanc',
+            'verset_reference' => 'Philippiens 4:13',
+            'verset_texte' => 'Je puis tout par celui qui me fortifie.',
+            'precisions' => 'Écriture dorée',
             'commune' => 'Cocody',
             'mode_livraison' => 'livreur',
-            'precisions' => 'Verset Philippiens 4:13',
-            'souhaits' => [
-                ['article_id' => $article->id, 'taille' => 'XL', 'couleur' => 'Blanc', 'quantite' => 2],
-            ],
         ]);
 
         $commande = Commande::first();
         $response->assertRedirect(route('commande.demande.merci', $commande->reference));
 
         $this->assertSame('en_attente', $commande->statut);
+        $this->assertSame('my_verse', $commande->collection);
+        $this->assertSame('XL', $commande->taille);
+        $this->assertSame('Blanc', $commande->couleur);
+        $this->assertSame('Philippiens 4:13', $commande->verset_reference);
+        $this->assertSame('Écriture dorée', $commande->message_client);
         $this->assertSame(0, $commande->total_articles);
-        $this->assertSame(0, $commande->total);
-        $this->assertSame(1500, $commande->frais_livraison); // recalculé serveur
+        $this->assertSame(1500, $commande->frais_livraison);
         $this->assertNull($commande->validee_at);
-        $this->assertSame('Tee-shirt Couronne d\'épines', $commande->souhaits_client[0]['article_nom']);
-        $this->assertSame(2, $commande->souhaits_client[0]['quantite']);
-        $this->assertSame('Verset Philippiens 4:13', $commande->message_client);
 
-        $client = $commande->client;
-        $this->assertSame('prospect', $client->statut);
-        $this->assertSame(0, $client->nb_commandes);
-        $this->assertNotNull($client->numero_client);
+        $this->assertSame('prospect', $commande->client->statut);
+        $this->assertSame(0, $commande->client->nb_commandes);
+        $this->assertNotNull($commande->client->numero_client);
 
-        $this->assertDatabaseHas('commande_journal', ['commande_id' => $commande->id, 'evenement' => 'creee']);
         Mail::assertQueued(DemandeDeposee::class);
+        $this->assertDatabaseHas('commande_journal', ['commande_id' => $commande->id, 'evenement' => 'creee']);
     }
 
-    public function test_le_formulaire_refuse_une_demande_sans_souhait(): void
+    public function test_une_demande_autre_collection_ne_demande_que_les_infos_et_la_livraison(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        User::factory()->create();
+
+        $this->post(route('commande.demande.store'), [
+            'nom' => 'Koffi', 'telephone' => '0102030406',
+            'collection' => 'autre',
+            'precisions' => 'Le pull beige vu sur WhatsApp, taille L',
+            'commune' => 'Yopougon', 'mode_livraison' => 'livreur',
+        ])->assertRedirect();
+
+        $commande = Commande::first();
+        $this->assertSame('autre', $commande->collection);
+        $this->assertNull($commande->taille);
+        $this->assertNull($commande->verset_reference);
+        $this->assertSame('Le pull beige vu sur WhatsApp, taille L', $commande->message_client);
+    }
+
+    public function test_my_verse_exige_la_taille(): void
     {
         User::factory()->create();
 
         $this->post(route('commande.demande.store'), [
-            'nom' => 'Aya', 'telephone' => '0102030405', 'commune' => 'Cocody', 'mode_livraison' => 'livreur',
-        ])->assertSessionHasErrors('souhaits');
+            'nom' => 'Aya', 'telephone' => '0102030405',
+            'collection' => 'my_verse',
+            'commune' => 'Cocody', 'mode_livraison' => 'livreur',
+        ])->assertSessionHasErrors('taille');
 
         $this->assertSame(0, Commande::count());
+    }
+
+    public function test_le_type_de_commande_est_obligatoire(): void
+    {
+        User::factory()->create();
+
+        $this->post(route('commande.demande.store'), [
+            'nom' => 'Aya', 'telephone' => '0102030405',
+            'commune' => 'Cocody', 'mode_livraison' => 'livreur',
+        ])->assertSessionHasErrors('collection');
     }
 
     public function test_anti_doublon_90_secondes(): void
@@ -105,11 +109,10 @@ class FormulaireDemandeTest extends TestCase
         Mail::fake();
         Notification::fake();
         User::factory()->create();
-        $article = $this->article();
 
         $payload = [
-            'nom' => 'Aya Kouassi', 'telephone' => '0102030405', 'commune' => 'Cocody', 'mode_livraison' => 'livreur',
-            'souhaits' => [['article_id' => $article->id, 'quantite' => 1]],
+            'nom' => 'Aya Kouassi', 'telephone' => '0102030405',
+            'collection' => 'autre', 'commune' => 'Cocody', 'mode_livraison' => 'livreur',
         ];
 
         $this->post(route('commande.demande.store'), $payload)->assertRedirect();
@@ -123,11 +126,10 @@ class FormulaireDemandeTest extends TestCase
         Mail::fake();
         Notification::fake();
         User::factory()->create();
-        $article = $this->article();
 
         $this->post(route('commande.demande.store'), [
-            'nom' => 'Aya Kouassi', 'telephone' => '0102030405', 'commune' => 'Cocody', 'mode_livraison' => 'livreur',
-            'souhaits' => [['article_id' => $article->id, 'quantite' => 1]],
+            'nom' => 'Aya Kouassi', 'telephone' => '0102030405',
+            'collection' => 'autre', 'commune' => 'Cocody', 'mode_livraison' => 'livreur',
         ]);
 
         $commande = Commande::first();

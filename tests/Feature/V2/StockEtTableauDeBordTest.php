@@ -56,7 +56,7 @@ class StockEtTableauDeBordTest extends TestCase
 
         $this->assertSame(15000, $tendances['ca']['valeur']);       // 10000 + 5000, PAS les frais
         $this->assertSame(2, $tendances['ventes']['valeur']);
-        $this->assertSame(3500, $tendances['total_frais']['valeur']);
+        $this->assertArrayNotHasKey('total_frais', $tendances);      // plus de comptabilisation de la livraison
         $this->assertSame(1, $composant->instance()->demandesAValider());
     }
 

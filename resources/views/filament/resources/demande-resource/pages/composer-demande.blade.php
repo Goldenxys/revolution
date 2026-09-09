@@ -2,7 +2,6 @@
     use App\Support\Francais;
     $c = $this->record;
     $client = $c->client;
-    $souhaits = $c->souhaits_client ?? [];
 @endphp
 
 <x-filament-panels::page>
@@ -47,38 +46,41 @@
             </x-filament::section>
 
             <x-filament::section>
-                <x-slot name="heading">Ses souhaits</x-slot>
-                <x-slot name="description">Tels qu'elle les a saisis — la vente se fait dans la conversation.</x-slot>
+                <x-slot name="heading">Sa demande</x-slot>
+                <x-slot name="description">Ce qu'elle a indiqué — la vente s'est faite dans la conversation.</x-slot>
 
-                @if (empty($souhaits))
-                    <p class="text-sm text-gray-500">Aucun article coché. Voir ses précisions ci-dessous.</p>
+                @if ($c->estMyVerse())
+                    <p class="text-sm font-medium mb-2">Tee-shirt My Verse</p>
+                    <dl class="space-y-2 text-sm">
+                        <div class="flex justify-between gap-3">
+                            <dt class="text-gray-500">Taille</dt>
+                            <dd class="text-right">{{ $c->taille ?: '— à préciser' }}</dd>
+                        </div>
+                        <div class="flex justify-between gap-3">
+                            <dt class="text-gray-500">Couleur</dt>
+                            <dd class="text-right">{{ $c->couleur ?: 'sans préférence' }}</dd>
+                        </div>
+                        @if ($c->verset_reference)
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-gray-500">Verset</dt>
+                                <dd class="text-right">{{ $c->verset_reference }}</dd>
+                            </div>
+                        @endif
+                    </dl>
+                    @if ($c->verset_texte)
+                        <p class="mt-2 rounded-lg bg-gray-50 dark:bg-white/5 px-3 py-2 text-sm whitespace-pre-line">{{ $c->verset_texte }}</p>
+                    @endif
                 @else
-                    <ul class="space-y-2 text-sm">
-                        @foreach ($souhaits as $s)
-                            <li class="rounded-lg bg-gray-50 dark:bg-white/5 px-3 py-2">
-                                <span class="font-medium">{{ $s['article_nom'] ?? 'Article' }}</span>
-                                @php
-                                    $meta = array_filter([$s['taille'] ?? null, $s['couleur'] ?? null]);
-                                @endphp
-                                @if ($meta)
-                                    <span class="text-gray-500">· {{ implode(' · ', $meta) }}</span>
-                                @endif
-                                <span class="text-gray-500">× {{ (int) ($s['quantite'] ?? 1) }}</span>
-                                @if (!empty($s['note']))
-                                    <p class="text-gray-500 mt-1">« {{ $s['note'] }} »</p>
-                                @endif
-                            </li>
-                        @endforeach
-                    </ul>
+                    <p class="text-sm font-medium">Un autre article de la collection</p>
+                    <p class="text-sm text-gray-500 mt-1">Reprenez l'article et le prix convenus sur WhatsApp.</p>
+                @endif
+
+                @if ($c->message_client)
+                    <p class="mt-3 pt-3 border-t border-gray-200 dark:border-white/10 text-sm">
+                        <span class="text-gray-500">Précisions :</span> {{ $c->message_client }}
+                    </p>
                 @endif
             </x-filament::section>
-
-            @if ($c->message_client)
-                <x-filament::section>
-                    <x-slot name="heading">Ses précisions</x-slot>
-                    <p class="text-sm whitespace-pre-line">{{ $c->message_client }}</p>
-                </x-filament::section>
-            @endif
 
             <x-filament::section>
                 <x-slot name="heading">Livraison choisie</x-slot>

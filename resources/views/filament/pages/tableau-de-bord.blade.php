@@ -10,7 +10,6 @@
         ['cle' => 'ca', 'label' => "Chiffre d'affaires du jour", 'icone' => 'heroicon-o-banknotes', 'francs' => true],
         ['cle' => 'ventes', 'label' => 'Ventes validées', 'icone' => 'heroicon-o-check-badge', 'francs' => false],
         ['cle' => 'nouveaux_clients', 'label' => 'Nouveaux clients', 'icone' => 'heroicon-o-user-plus', 'francs' => false],
-        ['cle' => 'total_frais', 'label' => 'Frais de livraison · hors CA', 'icone' => 'heroicon-o-truck', 'francs' => true],
     ];
 
     $couleursSens = [
@@ -57,7 +56,7 @@
     </div>
 
     {{-- Indicateurs --}}
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-2">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-2">
         @foreach ($cartes as $carte)
             @php $t = $tendances[$carte['cle']]; @endphp
 
@@ -95,7 +94,7 @@
     </div>
 
     {{-- Cumul du mois affiché --}}
-    <div class="grid grid-cols-3 gap-3 sm:gap-4 mb-2 text-center">
+    <div class="grid grid-cols-2 gap-3 sm:gap-4 mb-2 text-center">
         <div class="rounded-xl bg-gray-950/[0.03] dark:bg-white/[0.03] ring-1 ring-gray-950/[0.06] dark:ring-white/10 px-3 py-3">
             <p class="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">CA du mois</p>
             <p class="text-base sm:text-xl font-bold tabular-nums text-primary-600 dark:text-primary-400">{{ Francais::frais($mois['ca']) }}</p>
@@ -103,10 +102,6 @@
         <div class="rounded-xl bg-gray-950/[0.03] dark:bg-white/[0.03] ring-1 ring-gray-950/[0.06] dark:ring-white/10 px-3 py-3">
             <p class="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Nouveaux clients (mois)</p>
             <p class="text-base sm:text-xl font-bold tabular-nums">{{ $mois['nouveaux_clients'] }}</p>
-        </div>
-        <div class="rounded-xl bg-gray-950/[0.03] dark:bg-white/[0.03] ring-1 ring-gray-950/[0.06] dark:ring-white/10 px-3 py-3">
-            <p class="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Livraison (mois) · hors CA</p>
-            <p class="text-base sm:text-xl font-bold tabular-nums">{{ Francais::frais($mois['frais']) }}</p>
         </div>
     </div>
 

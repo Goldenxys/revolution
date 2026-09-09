@@ -67,7 +67,7 @@ class ComposerDemande extends Page implements HasForms
         }
 
         $this->form->fill([
-            'lignes' => $this->lignesDepuisSouhaits(),
+            'lignes' => $this->lignesInitiales(),
             'remise_manuelle' => false,
             'remise_pourcentage' => $this->remiseProposee(),
         ]);
@@ -151,6 +151,16 @@ class ComposerDemande extends Page implements HasForms
                                         $get('taille_id'),
                                         $get('couleur_id'),
                                     )),
+
+                                TextInput::make('verset')
+                                    ->label('Verset (référence + texte)')
+                                    ->columnSpan(6)
+                                    ->visible(fn (Get $get) => (bool) Article::find($get('article_id'))?->collection?->verset_requis),
+
+                                TextInput::make('modele')
+                                    ->label('Modèle')
+                                    ->columnSpan(6)
+                                    ->visible(fn (Get $get) => filled(Article::find($get('article_id'))?->collection?->modeles_disponibles)),
                             ]),
                     ]),
 
@@ -190,16 +200,16 @@ class ComposerDemande extends Page implements HasForms
     {
         return [
             Action::make('reprendre_souhaits')
-                ->label('Reprendre les souhaits de la cliente')
+                ->label('Reprendre la demande de la cliente')
                 ->icon('heroicon-o-arrow-down-on-square-stack')
                 ->color('gray')
                 ->action(function () {
-                    $this->data['lignes'] = $this->lignesDepuisSouhaits(forcer: true);
+                    $this->data['lignes'] = $this->lignesInitiales();
                     $this->form->fill($this->data);
 
                     Notification::make()
-                        ->title('Souhaits repris')
-                        ->body('Vérifiez les articles résolus, les tailles, les couleurs et les prix avant de valider.')
+                        ->title('Demande reprise')
+                        ->body('Taille, couleur et verset repris de la demande. Choisissez l\'article et vérifiez le prix.')
                         ->success()
                         ->send();
                 }),
@@ -249,6 +259,8 @@ class ComposerDemande extends Page implements HasForms
                     'couleur_nom' => $couleur?->nom,
                     'quantite' => (int) $l['quantite'],
                     'prix_unitaire' => (int) $l['prix_unitaire'],
+                    'verset' => $l['verset'] ?? null,
+                    'modele' => $l['modele'] ?? null,
                 ]);
             }
 
@@ -366,56 +378,39 @@ class ComposerDemande extends Page implements HasForms
     }
 
     /**
-     * Transforme les souhaits textuels de la cliente en lignes pré-remplies,
-     * en résolvant chaque nom vers un vrai article (correspondance exacte,
-     * puis approchée). Une ligne non résolue est laissée vide pour que la
-     * gérante choisisse elle-même.
+     * Une seule ligne de départ. La cliente ne choisit plus d'article : la
+     * gérante le fait ici. On pré-remplit ce que la cliente a fourni pour
+     * un tee-shirt My Verse — taille, couleur (résolues vers le catalogue)
+     * et verset — pour éviter à la gérante de le retaper.
      *
      * @return array<int, array<string, mixed>>
      */
-    protected function lignesDepuisSouhaits(bool $forcer = false): array
+    protected function lignesInitiales(): array
     {
-        $souhaits = $this->record->souhaits_client ?? [];
+        $ligne = $this->ligneVide();
 
-        if (empty($souhaits)) {
-            return $forcer ? [] : [$this->ligneVide()];
+        if ($this->record->estMyVerse()) {
+            $taille = $this->resoudreTaille($this->record->taille);
+            $couleur = $this->resoudreCouleur($this->record->couleur);
+
+            $ligne['taille_id'] = $taille?->id;
+            $ligne['couleur_id'] = $couleur?->id;
+            $ligne['verset'] = trim(collect([
+                $this->record->verset_reference,
+                $this->record->verset_texte,
+            ])->filter()->implode(' — ')) ?: null;
         }
 
-        return collect($souhaits)->map(function (array $s) {
-            // Le formulaire V2 enregistre l'id de l'article choisi : résolution
-            // exacte. `article_nom` sert de repli (demande importée, saisie
-            // libre d'une version future).
-            $article = (filled($s['article_id'] ?? null) ? Article::find($s['article_id']) : null)
-                ?? $this->resoudreArticle($s['article_nom'] ?? '');
-            $taille = $this->resoudreTaille($s['taille'] ?? null);
-            $couleur = $this->resoudreCouleur($s['couleur'] ?? null);
-
-            return [
-                'article_id' => $article?->id,
-                'taille_id' => ($article?->gere_tailles) ? $taille?->id : null,
-                'couleur_id' => ($article?->gere_couleurs) ? $couleur?->id : null,
-                'quantite' => max(1, (int) ($s['quantite'] ?? 1)),
-                'prix_unitaire' => $article?->prix,
-            ];
-        })->all();
+        return [$ligne];
     }
 
     /** @return array<string, mixed> */
     protected function ligneVide(): array
     {
-        return ['article_id' => null, 'taille_id' => null, 'couleur_id' => null, 'quantite' => 1, 'prix_unitaire' => null];
-    }
-
-    protected function resoudreArticle(string $nom): ?Article
-    {
-        $nom = trim($nom);
-
-        if ($nom === '') {
-            return null;
-        }
-
-        return Article::query()->where('active', true)->where('nom', $nom)->first()
-            ?? Article::query()->where('active', true)->where('nom', 'like', '%'.$nom.'%')->first();
+        return [
+            'article_id' => null, 'taille_id' => null, 'couleur_id' => null,
+            'quantite' => 1, 'prix_unitaire' => null, 'verset' => null, 'modele' => null,
+        ];
     }
 
     protected function resoudreTaille(?string $libelle): ?Taille

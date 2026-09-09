@@ -2,6 +2,7 @@
     use App\Support\Francais;
     $communes = config('revolution.communes');
     $tailles = config('revolution.tailles');
+    $couleurs = config('revolution.couleurs');
 @endphp
 
 <x-public-layout :titre="'RÉVOLUTION — Ma commande'">
@@ -19,7 +20,6 @@
             method="POST"
             action="{{ route('commande.demande.store') }}"
             x-data="commandeDemande({
-                articles: @js($articles),
                 communes: @js($communes),
                 urlReconnaissance: '{{ route('client.reconnaissance') }}',
                 nom: @js(old('nom')),
@@ -31,7 +31,11 @@
                 dateSouhaitee: @js(old('date_souhaitee')),
                 heureSouhaitee: @js(old('heure_souhaitee')),
                 precisions: @js(old('precisions')),
-                souhaits: @js(old('souhaits')),
+                collection: @js(old('collection')),
+                taille: @js(old('taille')),
+                couleur: @js(old('couleur')),
+                versetReference: @js(old('verset_reference')),
+                versetTexte: @js(old('verset_texte')),
             })"
             @submit="envoi = true"
             class="space-y-8"
@@ -79,74 +83,82 @@
             <fieldset class="space-y-5 border-t border-filet pt-8">
                 <legend class="text-sm uppercase tracking-[0.14em] text-texte-secondaire mb-3">Votre commande</legend>
 
-                @error('souhaits')<p class="text-xs text-rouille">{{ $message }}</p>@enderror
+                <div>
+                    <p class="block text-sm mb-3">Quel type de commande ? <span class="text-rouille">*</span></p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <button type="button" @click="collection = 'my_verse'"
+                                :class="collection === 'my_verse' ? 'border-rouille bg-creme' : 'border-filet bg-carte hover:border-rouille/50'"
+                                class="text-left border px-4 py-4 transition">
+                            <span class="block text-[13px] sm:text-sm font-medium text-encre">Tee-shirt My Verse</span>
+                            <span class="block text-[13px] text-texte-secondaire mt-0.5">À votre verset, écrit par vous.</span>
+                        </button>
+                        <button type="button" @click="collection = 'autre'"
+                                :class="collection === 'autre' ? 'border-rouille bg-creme' : 'border-filet bg-carte hover:border-rouille/50'"
+                                class="text-left border px-4 py-4 transition">
+                            <span class="block text-[13px] sm:text-sm font-medium text-encre">Un autre article</span>
+                            <span class="block text-[13px] text-texte-secondaire mt-0.5">Tout le reste de la collection RÉVOLUTION.</span>
+                        </button>
+                    </div>
+                    <input type="hidden" name="collection" :value="collection">
+                    @error('collection')<p class="mt-1.5 text-xs text-rouille">{{ $message }}</p>@enderror
+                </div>
 
-                <template x-for="(ligne, index) in lignes" :key="index">
-                    <div class="border border-filet bg-carte p-4 space-y-4">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[13px] text-texte-secondaire" x-text="`Article ${index + 1}`"></span>
-                            <button type="button" x-show="lignes.length > 1" @click="retirerLigne(index)"
-                                    class="text-[13px] text-texte-secondaire hover:text-rouille">Retirer</button>
-                        </div>
-
-                        <div>
-                            <label class="block text-sm mb-2">Article <span class="text-rouille">*</span></label>
-                            <select :name="`souhaits[${index}][article_id]`" x-model="ligne.article_id" required
-                                    class="w-full border border-filet bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
-                                <option value="" disabled>Choisissez un article</option>
-                                <template x-for="(articlesCol, collection) in articlesParCollection" :key="collection">
-                                    <optgroup :label="collection">
-                                        <template x-for="a in articlesCol" :key="a.id">
-                                            <option :value="a.id" x-text="`${a.nom} — ${francs(a.prix)}`"></option>
-                                        </template>
-                                    </optgroup>
-                                </template>
-                            </select>
-                        </div>
-
+                {{-- My Verse : le client fournit tout ce qu'il faut pour composer son tee-shirt --}}
+                <template x-if="collection === 'my_verse'">
+                    <div class="space-y-5 border border-filet bg-carte p-4" x-cloak>
                         <div class="grid grid-cols-2 gap-3">
-                            <div x-show="gereTailles(ligne)" x-cloak>
-                                <label class="block text-sm mb-2">Taille</label>
-                                <select :name="`souhaits[${index}][taille]`" x-model="ligne.taille"
-                                        class="w-full border border-filet bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
-                                    <option value="">Indifférent</option>
+                            <div>
+                                <label for="taille" class="block text-sm mb-2">Taille <span class="text-rouille">*</span></label>
+                                <select id="taille" name="taille" x-model="taille"
+                                        class="w-full border {{ $errors->has('taille') ? 'border-rouille' : 'border-filet' }} bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
+                                    <option value="">Choisissez</option>
                                     @foreach ($tailles as $t)
                                         <option value="{{ $t }}">{{ $t }}</option>
                                     @endforeach
                                 </select>
+                                @error('taille')<p class="mt-1.5 text-xs text-rouille">{{ $message }}</p>@enderror
                             </div>
-
-                            <div x-show="gereCouleurs(ligne)" x-cloak>
-                                <label class="block text-sm mb-2">Couleur</label>
-                                <select :name="`souhaits[${index}][couleur]`" x-model="ligne.couleur"
+                            <div>
+                                <label for="couleur" class="block text-sm mb-2">Couleur</label>
+                                <select id="couleur" name="couleur" x-model="couleur"
                                         class="w-full border border-filet bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
-                                    <option value="">Indifférent</option>
-                                    @foreach (config('revolution.couleurs') as $c)
+                                    <option value="">Sans préférence</option>
+                                    @foreach ($couleurs as $c)
                                         <option value="{{ $c }}">{{ $c }}</option>
                                     @endforeach
                                 </select>
                             </div>
+                        </div>
 
-                            <div>
-                                <label class="block text-sm mb-2">Quantité</label>
-                                <input type="number" min="1" max="10" :name="`souhaits[${index}][quantite]`"
-                                       x-model.number="ligne.quantite"
-                                       class="w-full border border-filet bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
-                            </div>
+                        <div>
+                            <label for="verset_reference" class="block text-sm mb-2">Verset choisi</label>
+                            <input type="text" id="verset_reference" name="verset_reference" maxlength="120"
+                                   x-model="versetReference" placeholder="Ex. Philippiens 4:13"
+                                   class="w-full border border-filet bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
+                        </div>
+
+                        <div>
+                            <label for="verset_texte" class="block text-sm mb-2">Texte du verset</label>
+                            <textarea id="verset_texte" name="verset_texte" rows="3" maxlength="2000"
+                                      x-model="versetTexte"
+                                      class="w-full border border-filet bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none"></textarea>
+                            <p class="mt-1.5 text-[13px] text-texte-secondaire">Vérifiez l'orthographe : le verset est imprimé tel que vous l'écrivez.</p>
                         </div>
                     </div>
                 </template>
 
-                <button type="button" @click="ajouterLigne()"
-                        class="w-full border border-dashed border-filet text-encre py-3 text-sm hover:border-rouille transition rounded-none">
-                    + Ajouter un autre article
-                </button>
+                {{-- Autre collection : rien de plus à saisir, la gérante compose --}}
+                <template x-if="collection === 'autre'">
+                    <p class="text-[14px] text-texte-secondaire border border-l-4 border-l-or border-filet bg-creme px-4 py-3" x-cloak>
+                        Pas besoin de détailler ici : la gérante reprend l'article et le prix convenus sur WhatsApp au moment de valider votre commande.
+                    </p>
+                </template>
 
-                <div>
-                    <label for="precisions" class="block text-sm mb-2">Précisions <span class="text-texte-secondaire text-xs">(verset, modèle, référence d'une photo vue sur WhatsApp…)</span></label>
+                <div x-show="collection" x-cloak>
+                    <label for="precisions" class="block text-sm mb-2">Précisions <span class="text-texte-secondaire text-xs">(modèle, référence d'une photo vue sur WhatsApp…)</span></label>
                     <textarea id="precisions" name="precisions" rows="3" maxlength="500"
                               x-model="precisions"
-                              class="w-full border border-filet bg-carte px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">{{ old('precisions') }}</textarea>
+                              class="w-full border border-filet bg-carte px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none"></textarea>
                 </div>
             </fieldset>
 
@@ -206,34 +218,20 @@
                         </div>
                     </div>
                 </template>
-            </fieldset>
 
-            {{-- Bloc 4 — Récapitulatif indicatif --}}
-            <template x-if="afficherRecap">
-                <div class="border border-filet bg-creme px-5 py-5 text-[14px]" x-cloak>
-                    <p class="text-xs uppercase tracking-[0.14em] text-texte-secondaire mb-3">Votre demande</p>
-                    <template x-for="(ligne, index) in lignes" :key="index">
-                        <div class="flex justify-between gap-3 py-0.5" x-show="articleDe(ligne)">
-                            <span>
-                                <span x-text="articleDe(ligne)?.nom"></span>
-                                <span class="text-texte-secondaire" x-text="[ligne.taille, ligne.couleur].filter(Boolean).join(', ')"></span>
-                                <span x-text="`× ${ligne.quantite}`"></span>
-                            </span>
-                            <span class="whitespace-nowrap text-texte-secondaire" x-text="`env. ${francs(articleDe(ligne).prix * ligne.quantite)}`"></span>
+                {{-- Rappel des frais de livraison, en bas de la section --}}
+                <template x-if="tarifCommune !== null">
+                    <div class="border border-filet bg-creme px-5 py-4 text-[14px]" x-cloak>
+                        <div class="flex justify-between gap-3">
+                            <span>Frais de livraison (<span x-text="commune"></span>)</span>
+                            <span class="font-medium" x-text="francs(tarifCommune)"></span>
                         </div>
-                    </template>
-                    <div class="flex justify-between gap-3 py-0.5" x-show="tarifCommune !== null">
-                        <span x-text="`Livraison (${commune})`"></span>
-                        <span x-text="francs(tarifCommune)"></span>
+                        <p class="mt-2 text-[13px] text-texte-secondaire">
+                            Le montant des articles est confirmé par la gérante à la validation de votre commande.
+                        </p>
                     </div>
-                    <div class="border-t border-filet my-2"></div>
-                    <div class="flex justify-between gap-3 font-semibold">
-                        <span>Estimation</span>
-                        <span x-text="`env. ${francs(estimationTotale)}`"></span>
-                    </div>
-                    <p class="mt-3 text-[13px] text-texte-secondaire">Montant définitif confirmé par la gérante à la validation.</p>
-                </div>
-            </template>
+                </template>
+            </fieldset>
 
             <button type="submit" :disabled="envoi"
                     class="w-full bg-rouille text-white py-4 text-sm uppercase tracking-wide font-medium transition hover:bg-rouille/90 disabled:opacity-60 rounded-none">

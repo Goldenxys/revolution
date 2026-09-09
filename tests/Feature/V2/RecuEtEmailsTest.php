@@ -5,11 +5,8 @@ namespace Tests\Feature\V2;
 use App\Mail\DemandeRecue;
 use App\Mail\RecuCommande;
 use App\Mail\VenteRealisee;
-use App\Models\Article;
 use App\Models\Client;
-use App\Models\CollectionCatalogue;
 use App\Models\Commande;
-use App\Models\TypeArticle;
 use App\Models\User;
 use App\Support\RecuPdf;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -95,14 +92,9 @@ class RecuEtEmailsTest extends TestCase
         Notification::fake();
         User::factory()->create();
 
-        $collection = CollectionCatalogue::create(['nom' => 'C', 'slug' => 'c']);
-        $type = TypeArticle::create(['nom' => 'T', 'slug' => 't', 'gere_tailles' => true, 'gere_couleurs' => true]);
-        $article = Article::create(['collection_id' => $collection->id, 'type_article_id' => $type->id, 'nom' => 'Art', 'slug' => 'art', 'prix' => 7000]);
-
         $this->post(route('commande.demande.store'), [
             'nom' => 'Aya', 'telephone' => '0102030405', 'email' => 'aya@example.com',
-            'commune' => 'Cocody', 'mode_livraison' => 'livreur',
-            'souhaits' => [['article_id' => $article->id, 'quantite' => 1]],
+            'collection' => 'autre', 'commune' => 'Cocody', 'mode_livraison' => 'livreur',
         ]);
 
         Mail::assertQueued(DemandeRecue::class, fn ($m) => $m->hasTo('aya@example.com'));

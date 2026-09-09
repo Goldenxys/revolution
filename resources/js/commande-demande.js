@@ -16,22 +16,20 @@ function formatDateLongue(iso) {
 }
 
 function formatFrancs(montant) {
-    return new Intl.NumberFormat('fr-FR').format(montant).replace(/ | /g, ' ') + ' F';
+    return new Intl.NumberFormat('fr-FR').format(montant).replace(/ | /g, ' ') + ' F';
 }
 
 /**
  * Composant Alpine du formulaire de demande V2 (§4). Court, textuel, sans
- * aucune image : la vente s'est faite sur WhatsApp, le site enregistre
- * proprement ce qui a été convenu. Répéteur de souhaits + récapitulatif
- * PUREMENT INDICATIF (le mot « environ » et la mention « montant définitif
- * confirmé par la gérante » ne sont pas décoratifs).
+ * aucune image. Le client ne choisit plus d'article : il indique s'il veut
+ * un tee-shirt My Verse (et fournit alors son verset, sa taille, sa
+ * couleur) ou un autre article de la collection (la gérante composera la
+ * commande depuis son panneau). Les frais de livraison sont rappelés, mais
+ * aucun total ferme n'est calculé côté client.
  */
 export default function commandeDemande(config) {
     return {
-        articles: config.articles || [],
         communes: config.communes || {},
-        tailles: config.tailles || [],
-        couleurs: config.couleurs || [],
         urlReconnaissance: config.urlReconnaissance,
 
         nom: config.nom || '',
@@ -44,58 +42,15 @@ export default function commandeDemande(config) {
         heureSouhaitee: config.heureSouhaitee || '',
         precisions: config.precisions || '',
 
-        lignes: [],
+        collection: config.collection || '',
+        taille: config.taille || '',
+        couleur: config.couleur || '',
+        versetReference: config.versetReference || '',
+        versetTexte: config.versetTexte || '',
 
         clientConnu: false,
         clientMessage: '',
         envoi: false,
-
-        init() {
-            const anciens = config.souhaits;
-            this.lignes = Array.isArray(anciens) && anciens.length
-                ? anciens.map((s) => ({
-                    article_id: String(s.article_id ?? ''),
-                    taille: s.taille ?? '',
-                    couleur: s.couleur ?? '',
-                    quantite: Number(s.quantite ?? 1),
-                }))
-                : [this.ligneVide()];
-        },
-
-        ligneVide() {
-            return { article_id: '', taille: '', couleur: '', quantite: 1 };
-        },
-
-        ajouterLigne() {
-            this.lignes.push(this.ligneVide());
-        },
-
-        retirerLigne(index) {
-            this.lignes.splice(index, 1);
-            if (this.lignes.length === 0) {
-                this.lignes.push(this.ligneVide());
-            }
-        },
-
-        articleDe(ligne) {
-            return this.articles.find((a) => String(a.id) === String(ligne.article_id)) || null;
-        },
-
-        gereTailles(ligne) {
-            return this.articleDe(ligne)?.gere_tailles ?? false;
-        },
-
-        gereCouleurs(ligne) {
-            return this.articleDe(ligne)?.gere_couleurs ?? false;
-        },
-
-        get articlesParCollection() {
-            const groupes = {};
-            for (const article of this.articles) {
-                (groupes[article.collection] ||= []).push(article);
-            }
-            return groupes;
-        },
 
         get tarifCommune() {
             return this.commune && this.communes[this.commune] !== undefined
@@ -109,21 +64,6 @@ export default function commandeDemande(config) {
 
         get dateLongue() {
             return formatDateLongue(this.dateSouhaitee);
-        },
-
-        get sousTotalEstime() {
-            return this.lignes.reduce((total, ligne) => {
-                const article = this.articleDe(ligne);
-                return total + (article ? article.prix * (Number(ligne.quantite) || 0) : 0);
-            }, 0);
-        },
-
-        get estimationTotale() {
-            return this.sousTotalEstime + (this.tarifCommune || 0);
-        },
-
-        get afficherRecap() {
-            return this.sousTotalEstime > 0;
         },
 
         francs(montant) {

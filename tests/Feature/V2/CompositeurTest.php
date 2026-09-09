@@ -52,9 +52,11 @@ class CompositeurTest extends TestCase
             'client_id' => $client->id,
             'commune' => 'Cocody', 'frais_livraison' => 1500, 'mode_livraison' => 'livreur',
             'statut' => 'en_attente',
-            'souhaits_client' => [
-                ['article_nom' => 'Couronne d\'épines', 'taille' => 'XL', 'couleur' => 'Blanc', 'quantite' => 1, 'note' => 'verset Ph 4:13'],
-            ],
+            'collection' => 'my_verse',
+            'taille' => 'XL',
+            'couleur' => 'Blanc',
+            'verset_reference' => 'Philippiens 4:13',
+            'message_client' => 'écriture dorée',
         ]);
 
         return [$client, $commande];
@@ -112,21 +114,21 @@ class CompositeurTest extends TestCase
         $this->assertSame(3, $cat['variante']->refresh()->stock); // 5 − 2
     }
 
-    public function test_le_bouton_reprendre_les_souhaits_pre_remplit_les_lignes(): void
+    public function test_le_compositeur_pre_remplit_taille_couleur_et_verset_pour_my_verse(): void
     {
         $gerante = User::factory()->create();
-        $cat = $this->catalogue();
+        $cat = $this->catalogue(); // crée la taille XL et la couleur Blanc
         [, $commande] = $this->demande();
 
         Livewire::actingAs($gerante)
             ->test(ComposerDemande::class, ['record' => $commande->getKey()])
-            ->callAction('reprendre_souhaits')
             ->assertFormSet(function (array $state) use ($cat) {
                 $ligne = $state['lignes'][array_key_first($state['lignes'])];
 
-                return $ligne['article_id'] === $cat['article']->id
-                    && (int) $ligne['prix_unitaire'] === 7000
-                    && (int) $ligne['quantite'] === 1;
+                return $ligne['taille_id'] === $cat['taille']->id
+                    && $ligne['couleur_id'] === $cat['couleur']->id
+                    && str_contains((string) $ligne['verset'], 'Philippiens 4:13')
+                    && $ligne['article_id'] === null; // la gérante choisit l'article
             });
     }
 

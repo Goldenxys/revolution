@@ -98,9 +98,9 @@ class TableauDeBord extends Page implements HasTable
 
     /**
      * V2 §9 — le chiffre d'affaires se compte sur les commandes VALIDÉES,
-     * à la date de `validee_at`, jamais `created_at`, jamais la livraison.
-     * Les frais de livraison sont suivis à part, avec le libellé explicite
-     * « hors chiffre d'affaires ».
+     * à la date de `validee_at`, jamais `created_at`. Les frais de livraison
+     * ne sont pas suivis ici : ils n'entrent jamais dans le chiffre
+     * d'affaires et cette agrégation n'a aucune utilité de pilotage.
      *
      * @return array<string, int>
      */
@@ -112,7 +112,6 @@ class TableauDeBord extends Page implements HasTable
             'ca' => (int) (clone $valideesDuJour)->sum('total_articles'),
             'ventes' => (clone $valideesDuJour)->count(),
             'nouveaux_clients' => Client::query()->whereDate('premiere_commande_at', $date)->count(),
-            'total_frais' => (int) (clone $valideesDuJour)->sum('frais_livraison'),
         ];
     }
 
@@ -142,7 +141,6 @@ class TableauDeBord extends Page implements HasTable
 
         return [
             'ca' => (int) (clone $valideesDuMois)->sum('total_articles'),
-            'frais' => (int) (clone $valideesDuMois)->sum('frais_livraison'),
             'nouveaux_clients' => Client::query()->whereBetween('premiere_commande_at', [$debut, $fin])->count(),
         ];
     }
@@ -200,7 +198,6 @@ class TableauDeBord extends Page implements HasTable
             'ca' => $construire($actuels['ca'], $veille['ca'], enFrancs: true),
             'ventes' => $construire($actuels['ventes'], $veille['ventes']),
             'nouveaux_clients' => $construire($actuels['nouveaux_clients'], $veille['nouveaux_clients']),
-            'total_frais' => $construire($actuels['total_frais'], $veille['total_frais'], enFrancs: true),
         ];
     }
 
@@ -230,7 +227,6 @@ class TableauDeBord extends Page implements HasTable
                 TextColumn::make('total_articles')
                     ->label('Chiffre d\'affaires')
                     ->formatStateUsing(fn ($state) => Francais::frais((int) $state))
-                    ->description(fn (Commande $commande) => 'livraison '.Francais::frais($commande->frais_livraison).' · hors CA')
                     ->weight('bold'),
 
                 TextColumn::make('commune')

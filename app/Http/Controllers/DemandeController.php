@@ -7,12 +7,10 @@ use App\Http\Controllers\Concerns\ResoutClientEtNotifie;
 use App\Http\Requests\StoreDemandeRequest;
 use App\Mail\DemandeDeposee;
 use App\Mail\DemandeRecue;
-use App\Models\Article;
 use App\Models\Commande;
 use App\Models\CommandeJournal;
 use App\Models\Parametre;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -22,10 +20,11 @@ use Illuminate\View\View;
  * Parcours de demande V2 (§4) : « Le client ne passe plus une commande. Il
  * dépose une demande. La commande naît quand la gérante la valide. »
  *
- * Le formulaire est court, textuel, sans aucune image d'article. Il
- * n'affiche aucune disponibilité et n'enregistre aucun total ferme : tous
- * les montants de la commande créée sont à zéro tant que la gérante n'a
- * pas validé.
+ * Le formulaire est court, textuel, sans aucune image d'article. Le client
+ * ne choisit plus d'article : il indique s'il veut un tee-shirt My Verse
+ * (et fournit alors son verset / sa taille / sa couleur) ou un autre
+ * article de la collection — la gérante compose la commande depuis son
+ * panneau à la validation. Aucun total ferme n'est enregistré.
  */
 class DemandeController extends Controller
 {
@@ -34,7 +33,6 @@ class DemandeController extends Controller
     public function creer(): View
     {
         return view('commande.demande', [
-            'articles' => $this->optionsArticles(),
             'communes' => config('revolution.communes'),
         ]);
     }
@@ -42,8 +40,9 @@ class DemandeController extends Controller
     public function store(StoreDemandeRequest $request): RedirectResponse
     {
         $donnees = $request->validated();
+        $estMyVerse = $donnees['collection'] === 'my_verse';
 
-        $commande = DB::transaction(function () use ($donnees) {
+        $commande = DB::transaction(function () use ($donnees, $estMyVerse) {
             $client = $this->resoudreProspect($donnees);
 
             // Frais recalculés côté serveur, jamais depuis le formulaire.
@@ -51,6 +50,14 @@ class DemandeController extends Controller
 
             $commande = Commande::create([
                 'client_id' => $client->id,
+                'collection' => $donnees['collection'],
+                // Détails My Verse fournis par le client — figés tels quels,
+                // ce sont la trace de sa demande (§3.1). Vides pour « autre » :
+                // la gérante reprend l'article convenu sur WhatsApp.
+                'taille' => $estMyVerse ? ($donnees['taille'] ?? null) : null,
+                'couleur' => $estMyVerse ? ($donnees['couleur'] ?? null) : null,
+                'verset_reference' => $estMyVerse ? ($donnees['verset_reference'] ?? null) : null,
+                'verset_texte' => $estMyVerse ? ($donnees['verset_texte'] ?? null) : null,
                 'commune' => $donnees['commune'],
                 'frais_livraison' => $fraisLivraison,
                 'quartier' => $donnees['quartier'] ?? null,
@@ -58,7 +65,6 @@ class DemandeController extends Controller
                 'date_souhaitee' => $donnees['date_souhaitee'] ?? null,
                 'heure_souhaitee' => $donnees['heure_souhaitee'] ?? null,
                 'statut' => 'en_attente',
-                'souhaits_client' => $this->normaliserSouhaits($donnees['souhaits']),
                 'message_client' => $donnees['precisions'] ?? null,
                 // Aucune vente à ce stade : tous les totaux restent à zéro.
                 'sous_total' => 0,
@@ -71,7 +77,7 @@ class DemandeController extends Controller
 
             CommandeJournal::consigner($commande, 'creee', [
                 'canal' => 'formulaire_demande_v2',
-                'nb_souhaits' => count($donnees['souhaits']),
+                'collection' => $donnees['collection'],
             ]);
 
             return $commande;
@@ -135,54 +141,5 @@ class DemandeController extends Controller
                 'erreur' => $e->getMessage(),
             ]);
         }
-    }
-
-    /**
-     * Fige le nom d'article (résolu depuis le catalogue) à côté de l'id, et
-     * nettoie les valeurs — c'est la trace de la demande, jamais modifiée
-     * après soumission.
-     *
-     * @param  array<int, array<string, mixed>>  $souhaits
-     * @return array<int, array<string, mixed>>
-     */
-    private function normaliserSouhaits(array $souhaits): array
-    {
-        $noms = Article::query()->whereIn('id', collect($souhaits)->pluck('article_id'))->pluck('nom', 'id');
-
-        return collect($souhaits)->map(fn (array $s) => [
-            'article_id' => (int) $s['article_id'],
-            'article_nom' => $noms[$s['article_id']] ?? 'Article',
-            'taille' => $s['taille'] ?? null,
-            'couleur' => $s['couleur'] ?? null,
-            'quantite' => (int) $s['quantite'],
-            'note' => null,
-        ])->values()->all();
-    }
-
-    /**
-     * Liste textuelle des articles actifs, groupés par collection — nom et
-     * prix, sans photo, sans filtre de disponibilité (§4.2 : « la gérante
-     * tranchera »).
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
-    private function optionsArticles(): Collection
-    {
-        return Article::query()
-            ->where('active', true)
-            ->with(['collection:id,nom,ordre', 'typeArticle:id,gere_tailles,gere_couleurs'])
-            ->orderBy('ordre')
-            ->get(['id', 'collection_id', 'type_article_id', 'nom', 'prix'])
-            ->map(fn (Article $a) => [
-                'id' => $a->id,
-                'nom' => $a->nom,
-                'prix' => $a->prix,
-                'collection' => $a->collection?->nom ?? 'RÉVOLUTION',
-                'collection_ordre' => $a->collection?->ordre ?? 999,
-                'gere_tailles' => $a->gere_tailles,
-                'gere_couleurs' => $a->gere_couleurs,
-            ])
-            ->sortBy([['collection_ordre', 'asc'], ['nom', 'asc']])
-            ->values();
     }
 }

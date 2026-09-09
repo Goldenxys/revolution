@@ -83,11 +83,11 @@ class DemandeResource extends Resource
                         fn (Builder $qc) => $qc->where('nom', 'like', "%{$s}%")->orWhere('telephone', 'like', "%{$s}%")
                     )),
 
-                TextColumn::make('souhaits_client')
-                    ->label('Souhaits')
-                    ->formatStateUsing(fn (Commande $c) => static::resumeSouhaits($c))
-                    ->wrap()
-                    ->lineClamp(2),
+                TextColumn::make('demande')
+                    ->label('Demande')
+                    ->state(fn (Commande $c) => $c->estMyVerse() ? 'Tee-shirt My Verse' : 'Autre article')
+                    ->description(fn (Commande $c) => static::resumeSouhaits($c))
+                    ->wrap(),
 
                 TextColumn::make('commune')
                     ->label('Livraison')
@@ -106,30 +106,29 @@ class DemandeResource extends Resource
     }
 
     /**
-     * Résumé d'une ligne des souhaits saisis par la cliente (jamais des
-     * lignes fermes — celles-ci n'existent qu'à la validation).
+     * Résumé de ce que la cliente a saisi (jamais des lignes fermes —
+     * celles-ci n'existent qu'à la validation). Pour un tee-shirt My Verse :
+     * taille, couleur, verset. Pour un autre article : ses précisions.
      */
     public static function resumeSouhaits(Commande $commande): string
     {
-        $souhaits = $commande->souhaits_client ?? [];
+        if ($commande->estMyVerse()) {
+            $parts = array_filter([
+                $commande->taille ? 'taille '.$commande->taille : null,
+                $commande->couleur,
+                $commande->verset_reference ?: ($commande->verset_texte ? Str::limit($commande->verset_texte, 40) : null),
+            ]);
 
-        if (empty($souhaits)) {
-            return $commande->message_client ? '« '.Str::limit($commande->message_client, 80).' »' : '—';
+            $resume = implode(' · ', $parts) ?: 'à préciser avec la cliente';
+
+            return $commande->message_client
+                ? $resume.' — « '.Str::limit($commande->message_client, 60).' »'
+                : $resume;
         }
 
-        return collect($souhaits)
-            ->map(function (array $s) {
-                $parts = array_filter([
-                    $s['article_nom'] ?? null,
-                    $s['taille'] ?? null,
-                    $s['couleur'] ?? null,
-                ]);
-                $ligne = implode(' · ', $parts);
-                $q = (int) ($s['quantite'] ?? 1);
-
-                return $q > 1 ? "{$ligne} ×{$q}" : $ligne;
-            })
-            ->implode(' | ');
+        return $commande->message_client
+            ? '« '.Str::limit($commande->message_client, 90).' »'
+            : 'Article convenu sur WhatsApp';
     }
 
     public static function getPages(): array

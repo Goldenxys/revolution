@@ -9,9 +9,11 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Formulaire de demande V2 (§4.3) : la cliente dépose une demande courte et
- * textuelle. Le serveur ne vérifie aucune disponibilité et ne calcule aucun
- * total ferme — la gérante compose et valide ensuite.
+ * Formulaire de demande V2 (§4.3) : la cliente dépose une demande courte.
+ * Elle ne choisit plus d'article — elle dit seulement s'il s'agit d'un
+ * tee-shirt My Verse (et fournit alors verset / taille / couleur) ou d'un
+ * autre article. La gérante compose et valide ensuite. Le serveur ne
+ * calcule aucun total ferme.
  */
 class StoreDemandeRequest extends FormRequest
 {
@@ -31,12 +33,12 @@ class StoreDemandeRequest extends FormRequest
             'telephone' => ['required', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:190'],
 
-            // Bloc 2 — Votre commande (souhaits, pas engagements)
-            'souhaits' => ['required', 'array', 'min:1', 'max:20'],
-            'souhaits.*.article_id' => ['required', 'integer', 'exists:articles,id'],
-            'souhaits.*.taille' => ['nullable', 'string', 'max:20'],
-            'souhaits.*.couleur' => ['nullable', 'string', 'max:60'],
-            'souhaits.*.quantite' => ['required', 'integer', 'min:1', 'max:10'],
+            // Bloc 2 — Votre commande
+            'collection' => ['required', Rule::in(['my_verse', 'autre'])],
+            'taille' => ['nullable', 'required_if:collection,my_verse', Rule::in(config('revolution.tailles'))],
+            'couleur' => ['nullable', Rule::in(config('revolution.couleurs'))],
+            'verset_reference' => ['nullable', 'string', 'max:120'],
+            'verset_texte' => ['nullable', 'string', 'max:2000'],
             'precisions' => ['nullable', 'string', 'max:500'],
 
             // Bloc 3 — La livraison (inchangé)
@@ -66,12 +68,9 @@ class StoreDemandeRequest extends FormRequest
             'nom.required' => 'Merci d\'indiquer votre nom et prénom.',
             'telephone.required' => 'Merci d\'indiquer votre numéro de téléphone.',
             'email.email' => 'Cet e-mail n\'a pas l\'air valide.',
-            'souhaits.required' => 'Ajoutez au moins un article souhaité.',
-            'souhaits.min' => 'Ajoutez au moins un article souhaité.',
-            'souhaits.*.article_id.required' => 'Choisissez un article.',
-            'souhaits.*.article_id.exists' => 'Cet article n\'existe pas.',
-            'souhaits.*.quantite.min' => 'La quantité doit être d\'au moins 1.',
-            'souhaits.*.quantite.max' => 'Pour plus de 10 pièces, contactez-nous directement.',
+            'collection.required' => 'Choisissez le type de commande.',
+            'collection.in' => 'Choisissez le type de commande.',
+            'taille.required_if' => 'Merci de choisir la taille de votre tee-shirt My Verse.',
             'commune.required' => 'Merci de choisir votre commune de livraison.',
             'commune.in' => 'Cette commune n\'est pas dans notre liste de livraison.',
             'mode_livraison.required' => 'Merci de choisir un mode de livraison.',

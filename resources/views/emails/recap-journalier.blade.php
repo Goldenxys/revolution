@@ -21,21 +21,17 @@ Récap du jour — RÉVOLUTION
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
 <tr>
-<td style="width:25%;padding:10px;text-align:center;border:1px solid #E9E0D5;">
+<td style="width:34%;padding:10px;text-align:center;border:1px solid #E9E0D5;">
 <div style="font-size:22px;font-weight:600;color:#8E3914;">{{ Francais::frais($indicateurs['ca']) }}</div>
 <div style="font-size:11px;color:#7A6E63;">Chiffre d'affaires</div>
 </td>
-<td style="width:25%;padding:10px;text-align:center;border:1px solid #E9E0D5;">
+<td style="width:33%;padding:10px;text-align:center;border:1px solid #E9E0D5;">
 <div style="font-size:24px;font-weight:600;">{{ $indicateurs['ventes'] }}</div>
 <div style="font-size:11px;color:#7A6E63;">Ventes validées</div>
 </td>
-<td style="width:25%;padding:10px;text-align:center;border:1px solid #E9E0D5;">
+<td style="width:33%;padding:10px;text-align:center;border:1px solid #E9E0D5;">
 <div style="font-size:24px;font-weight:600;">{{ $indicateurs['nouveaux_clients'] }}</div>
 <div style="font-size:11px;color:#7A6E63;">Nouveaux clients</div>
-</td>
-<td style="width:25%;padding:10px;text-align:center;border:1px solid #E9E0D5;">
-<div style="font-size:22px;font-weight:600;">{{ Francais::frais($indicateurs['total_frais']) }}</div>
-<div style="font-size:11px;color:#7A6E63;">Livraison — hors CA</div>
 </td>
 </tr>
 </table>
@@ -45,14 +41,14 @@ Récap du jour — RÉVOLUTION
 <td style="padding:8px;border-bottom:1px solid #E9E0D5;color:#7A6E63;">Heure</td>
 <td style="padding:8px;border-bottom:1px solid #E9E0D5;color:#7A6E63;">Client</td>
 <td style="padding:8px;border-bottom:1px solid #E9E0D5;color:#7A6E63;">Article</td>
-<td style="padding:8px;border-bottom:1px solid #E9E0D5;color:#7A6E63;">Livraison</td>
+<td style="padding:8px;border-bottom:1px solid #E9E0D5;color:#7A6E63;">Chiffre d'affaires</td>
 </tr>
 @forelse ($commandes as $commande)
 <tr>
 <td style="padding:8px;border-bottom:1px solid #E9E0D5;">{{ ($commande->validee_at ?? $commande->created_at)->format('H:i') }}</td>
 <td style="padding:8px;border-bottom:1px solid #E9E0D5;">{{ $commande->client->nom }}</td>
 <td style="padding:8px;border-bottom:1px solid #E9E0D5;">{{ $commande->libelle_article }}</td>
-<td style="padding:8px;border-bottom:1px solid #E9E0D5;">CA {{ Francais::frais($commande->total_articles) }} · liv. {{ Francais::frais($commande->frais_livraison) }}</td>
+<td style="padding:8px;border-bottom:1px solid #E9E0D5;">{{ Francais::frais($commande->total_articles) }}</td>
 </tr>
 @empty
 <tr><td colspan="4" style="padding:16px;text-align:center;color:#7A6E63;">Aucune commande ce jour-là.</td></tr>
