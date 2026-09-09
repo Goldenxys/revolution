@@ -2,12 +2,15 @@
     use App\Support\Francais;
 
     $tendances = $this->indicateursAvecTendance();
+    $mois = $this->indicateursDuMois();
+    $demandes = $this->demandesAValider();
+    $topArticles = $this->topArticlesDuMois();
 
     $cartes = [
-        ['cle' => 'commandes', 'label' => 'Commandes du jour', 'icone' => 'heroicon-o-shopping-bag', 'francs' => false],
+        ['cle' => 'ca', 'label' => "Chiffre d'affaires du jour", 'icone' => 'heroicon-o-banknotes', 'francs' => true],
+        ['cle' => 'ventes', 'label' => 'Ventes validées', 'icone' => 'heroicon-o-check-badge', 'francs' => false],
         ['cle' => 'nouveaux_clients', 'label' => 'Nouveaux clients', 'icone' => 'heroicon-o-user-plus', 'francs' => false],
-        ['cle' => 'my_verse', 'label' => 'My Verse', 'icone' => 'heroicon-o-book-open', 'francs' => false],
-        ['cle' => 'total_frais', 'label' => 'Frais de livraison', 'icone' => 'heroicon-o-truck', 'francs' => true],
+        ['cle' => 'total_frais', 'label' => 'Frais de livraison · hors CA', 'icone' => 'heroicon-o-truck', 'francs' => true],
     ];
 
     $couleursSens = [
@@ -18,6 +21,23 @@
 @endphp
 
 <x-filament-panels::page>
+
+    {{-- Demandes à valider — le premier regard du matin (V2 §9) --}}
+    <a href="{{ $this->lienDemandes() }}"
+       class="flex items-center justify-between gap-4 rounded-2xl px-5 py-4 mb-4 ring-1 transition
+              {{ $demandes > 0
+                 ? 'bg-danger-50 dark:bg-danger-400/10 ring-danger-200 dark:ring-danger-400/20 hover:ring-danger-400'
+                 : 'bg-gray-950/[0.03] dark:bg-white/[0.03] ring-gray-950/[0.06] dark:ring-white/10' }}">
+        <div>
+            <p class="text-[11px] uppercase tracking-wide font-medium text-gray-500 dark:text-gray-400">Demandes à valider</p>
+            <p class="text-3xl font-bold tabular-nums {{ $demandes > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-950 dark:text-white' }}">
+                {{ $demandes }}
+            </p>
+        </div>
+        <span class="text-sm {{ $demandes > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-400' }}">
+            {{ $demandes > 0 ? 'À traiter →' : 'Rien en attente' }}
+        </span>
+    </a>
 
     {{-- Navigation jour par jour --}}
     <div class="flex items-center justify-center gap-3 sm:gap-4 mb-5 px-2">
@@ -74,6 +94,22 @@
         @endforeach
     </div>
 
+    {{-- Cumul du mois affiché --}}
+    <div class="grid grid-cols-3 gap-3 sm:gap-4 mb-2 text-center">
+        <div class="rounded-xl bg-gray-950/[0.03] dark:bg-white/[0.03] ring-1 ring-gray-950/[0.06] dark:ring-white/10 px-3 py-3">
+            <p class="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">CA du mois</p>
+            <p class="text-base sm:text-xl font-bold tabular-nums text-primary-600 dark:text-primary-400">{{ Francais::frais($mois['ca']) }}</p>
+        </div>
+        <div class="rounded-xl bg-gray-950/[0.03] dark:bg-white/[0.03] ring-1 ring-gray-950/[0.06] dark:ring-white/10 px-3 py-3">
+            <p class="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Nouveaux clients (mois)</p>
+            <p class="text-base sm:text-xl font-bold tabular-nums">{{ $mois['nouveaux_clients'] }}</p>
+        </div>
+        <div class="rounded-xl bg-gray-950/[0.03] dark:bg-white/[0.03] ring-1 ring-gray-950/[0.06] dark:ring-white/10 px-3 py-3">
+            <p class="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Livraison (mois) · hors CA</p>
+            <p class="text-base sm:text-xl font-bold tabular-nums">{{ Francais::frais($mois['frais']) }}</p>
+        </div>
+    </div>
+
     {{-- Commandes du jour --}}
     <div class="-mx-4 sm:mx-0 overflow-x-auto">
         {{ $this->table }}
@@ -81,6 +117,28 @@
 
     {{-- Graphique 14 derniers jours --}}
     @livewire(\App\Filament\Widgets\CommandesRecentesWidget::class)
+
+    {{-- Stock faible et ruptures --}}
+    @if (\App\Filament\Widgets\StockAlerteWidget::canView())
+        <div class="-mx-4 sm:mx-0 overflow-x-auto">
+            @livewire(\App\Filament\Widgets\StockAlerteWidget::class)
+        </div>
+    @endif
+
+    {{-- Top articles du mois --}}
+    @if ($topArticles->isNotEmpty())
+        <x-filament::section>
+            <x-slot name="heading">Top articles du mois</x-slot>
+            <ol class="space-y-1.5 text-sm">
+                @foreach ($topArticles as $article)
+                    <li class="flex justify-between">
+                        <span>{{ $loop->iteration }}. {{ $article->article_nom }}</span>
+                        <span class="font-medium tabular-nums">{{ (int) $article->quantite }} vendu{{ $article->quantite > 1 ? 's' : '' }}</span>
+                    </li>
+                @endforeach
+            </ol>
+        </x-filament::section>
+    @endif
 
     {{-- Articles épuisés, seulement s'il y en a --}}
     @if (\App\Filament\Widgets\ArticlesEpuisesWidget::canView())

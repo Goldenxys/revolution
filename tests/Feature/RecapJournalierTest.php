@@ -31,15 +31,19 @@ class RecapJournalierTest extends TestCase
             'derniere_commande_at' => now(),
         ]);
 
-        Commande::create([
+        $commande = Commande::create([
             'client_id' => $client->id,
-            'collection' => 'my_verse',
-            'taille' => 'M',
             'commune' => 'Cocody',
             'frais_livraison' => 1500,
             'mode_livraison' => 'livreur',
+            'statut' => 'validee',
+            'validee_at' => now(),
+            'sous_total' => 8000,
+            'total_articles' => 8000,
+            'total_a_payer' => 9500,
             'numero_commande_client' => 1,
         ]);
+        $commande->lignes()->create(['article_nom' => 'Tee-shirt', 'quantite' => 1, 'prix_unitaire' => 8000]);
 
         Livewire::actingAs($gerante)
             ->test(TableauDeBord::class)
@@ -47,7 +51,8 @@ class RecapJournalierTest extends TestCase
             ->assertNotified('Récap envoyé');
 
         Mail::assertQueued(RecapJournalier::class, function (RecapJournalier $mail) {
-            return $mail->indicateurs['commandes'] === 1
+            return $mail->indicateurs['ca'] === 8000
+                && $mail->indicateurs['ventes'] === 1
                 && $mail->commandes->first()->client->nom === 'Fatou Diarra';
         });
     }

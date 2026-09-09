@@ -2,9 +2,11 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Resources\DemandeResource;
 use App\Mail\RecapJournalier;
 use App\Models\Client;
 use App\Models\Commande;
+use App\Models\CommandeLigne;
 use App\Models\Parametre;
 use App\Support\Francais;
 use Filament\Actions\Action;
@@ -15,10 +17,9 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 
 class TableauDeBord extends Page implements HasTable
 {
@@ -96,18 +97,73 @@ class TableauDeBord extends Page implements HasTable
     }
 
     /**
+     * V2 §9 — le chiffre d'affaires se compte sur les commandes VALIDÉES,
+     * à la date de `validee_at`, jamais `created_at`, jamais la livraison.
+     * Les frais de livraison sont suivis à part, avec le libellé explicite
+     * « hors chiffre d'affaires ».
+     *
      * @return array<string, int>
      */
     private function indicateursPour(string $date): array
     {
-        $commandesDuJour = Commande::query()->whereDate('created_at', $date);
+        $valideesDuJour = Commande::query()->validees()->whereDate('validee_at', $date);
 
         return [
-            'commandes' => (clone $commandesDuJour)->count(),
+            'ca' => (int) (clone $valideesDuJour)->sum('total_articles'),
+            'ventes' => (clone $valideesDuJour)->count(),
             'nouveaux_clients' => Client::query()->whereDate('premiere_commande_at', $date)->count(),
-            'my_verse' => (clone $commandesDuJour)->where('collection', 'my_verse')->count(),
-            'total_frais' => (int) (clone $commandesDuJour)->sum('frais_livraison'),
+            'total_frais' => (int) (clone $valideesDuJour)->sum('frais_livraison'),
         ];
+    }
+
+    /**
+     * Nombre de demandes en attente de validation — le premier regard du
+     * matin (V2 §9, widget 1). Non borné à une date : c'est un « à faire ».
+     */
+    public function demandesAValider(): int
+    {
+        return Commande::query()->where('statut', 'en_attente')->count();
+    }
+
+    public function lienDemandes(): string
+    {
+        return DemandeResource::getUrl('index');
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function indicateursDuMois(): array
+    {
+        $debut = $this->carbonDate()->copy()->startOfMonth();
+        $fin = $this->carbonDate()->copy()->endOfMonth();
+
+        $valideesDuMois = Commande::query()->validees()->whereBetween('validee_at', [$debut, $fin]);
+
+        return [
+            'ca' => (int) (clone $valideesDuMois)->sum('total_articles'),
+            'frais' => (int) (clone $valideesDuMois)->sum('frais_livraison'),
+            'nouveaux_clients' => Client::query()->whereBetween('premiere_commande_at', [$debut, $fin])->count(),
+        ];
+    }
+
+    /**
+     * Top articles du mois, par quantité validée (V2 §9, widget 7).
+     *
+     * @return Collection<int, object>
+     */
+    public function topArticlesDuMois(): Collection
+    {
+        $debut = $this->carbonDate()->copy()->startOfMonth();
+        $fin = $this->carbonDate()->copy()->endOfMonth();
+
+        return CommandeLigne::query()
+            ->selectRaw('article_nom, SUM(quantite) as quantite')
+            ->whereHas('commande', fn ($q) => $q->validees()->whereBetween('validee_at', [$debut, $fin]))
+            ->groupBy('article_nom')
+            ->orderByDesc('quantite')
+            ->limit(5)
+            ->get();
     }
 
     /**
@@ -141,9 +197,9 @@ class TableauDeBord extends Page implements HasTable
         };
 
         return [
-            'commandes' => $construire($actuels['commandes'], $veille['commandes']),
+            'ca' => $construire($actuels['ca'], $veille['ca'], enFrancs: true),
+            'ventes' => $construire($actuels['ventes'], $veille['ventes']),
             'nouveaux_clients' => $construire($actuels['nouveaux_clients'], $veille['nouveaux_clients']),
-            'my_verse' => $construire($actuels['my_verse'], $veille['my_verse']),
             'total_frais' => $construire($actuels['total_frais'], $veille['total_frais'], enFrancs: true),
         ];
     }
@@ -153,58 +209,43 @@ class TableauDeBord extends Page implements HasTable
         return $table
             ->query(
                 Commande::query()
-                    ->with('client')
-                    ->whereDate('created_at', $this->date)
+                    ->with(['client', 'lignes'])
+                    ->validees()
+                    ->whereDate('validee_at', $this->date)
             )
-            ->heading('Commandes du '.$this->libelleJour())
-            ->defaultSort('created_at', 'desc')
+            ->heading('Ventes validées du '.$this->libelleJour())
+            ->defaultSort('validee_at', 'desc')
             ->columns([
-                TextColumn::make('created_at')->label('Heure')->time('H:i'),
+                TextColumn::make('validee_at')->label('Validée')->time('H:i'),
 
                 TextColumn::make('client.nom')
-                    ->label('Client')
+                    ->label('Cliente')
                     ->description(fn (Commande $commande) => $commande->client->telephone),
 
-                TextColumn::make('collection')
-                    ->label('Collection')
-                    ->badge()
-                    ->formatStateUsing(fn (string $state) => $state === 'my_verse' ? 'MY VERSE' : 'Autre collection')
-                    ->color(fn (string $state) => $state === 'my_verse' ? 'gold' : 'gray'),
-
                 TextColumn::make('article')
-                    ->label('Article')
-                    ->state(function (Commande $commande) {
-                        if ($commande->estMyVerse()) {
-                            return trim(($commande->verset_reference ?: 'Verset').' · '.Str::limit($commande->verset_texte ?: '—', 40));
-                        }
-
-                        return trim(($commande->type_article ?? '').' « '.($commande->nom_article ?? '').' »');
-                    })
+                    ->label('Articles')
+                    ->state(fn (Commande $commande) => $commande->libelle_article)
                     ->wrap(),
 
-                TextColumn::make('taille_couleur')
-                    ->label('Taille / couleur')
-                    ->state(fn (Commande $commande) => collect([$commande->taille, $commande->couleur])->filter()->implode(' · ') ?: '—'),
+                TextColumn::make('total_articles')
+                    ->label('Chiffre d\'affaires')
+                    ->formatStateUsing(fn ($state) => Francais::frais((int) $state))
+                    ->description(fn (Commande $commande) => 'livraison '.Francais::frais($commande->frais_livraison).' · hors CA')
+                    ->weight('bold'),
 
                 TextColumn::make('commune')
-                    ->label('Commune')
-                    ->description(fn (Commande $commande) => Francais::frais($commande->frais_livraison).($commande->quartier ? ' · '.$commande->quartier : '')),
-
-                TextColumn::make('mode_livraison')
                     ->label('Livraison')
                     ->badge()
                     ->color(fn (Commande $commande) => $commande->estYango() ? 'primary' : 'gray')
-                    ->formatStateUsing(fn (Commande $commande) => $commande->estYango()
-                        ? 'Yango — '.Francais::dateHeureLongue($commande->date_souhaitee, $commande->heure_souhaitee)
-                        : 'Selon les zones'),
+                    ->formatStateUsing(fn (Commande $commande) => $commande->commune.' — '.($commande->estYango() ? 'Yango' : 'livreur')),
 
                 TextColumn::make('numero_commande_client')
                     ->label('Fidélité')
-                    ->formatStateUsing(fn (Commande $commande) => $commande->numero_commande_client <= 1
-                        ? 'Nouveau'
+                    ->formatStateUsing(fn (Commande $commande) => ($commande->numero_commande_client ?? 1) <= 1
+                        ? 'Nouvelle'
                         : Francais::ordinal($commande->numero_commande_client).' cde')
                     ->badge()
-                    ->color(fn (Commande $commande) => $commande->numero_commande_client <= 1 ? 'success' : 'gold'),
+                    ->color(fn (Commande $commande) => ($commande->numero_commande_client ?? 1) <= 1 ? 'success' : 'gold'),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()
@@ -235,7 +276,11 @@ class TableauDeBord extends Page implements HasTable
                 ->icon('heroicon-o-envelope')
                 ->color('primary')
                 ->action(function () {
-                    $commandes = Commande::with('client')->whereDate('created_at', $this->date)->orderBy('created_at')->get();
+                    $commandes = Commande::with(['client', 'lignes'])
+                        ->validees()
+                        ->whereDate('validee_at', $this->date)
+                        ->orderBy('validee_at')
+                        ->get();
 
                     try {
                         Mail::to(Parametre::emailReception())
