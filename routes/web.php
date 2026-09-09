@@ -23,26 +23,24 @@ Route::get('/commande/my-verse', [CommandeController::class, 'myVerse'])->name('
 Route::get('/commande/autre', [CommandeController::class, 'autre'])->name('commande.autre');
 Route::post('/commande', [CommandeController::class, 'store'])->name('commande.store');
 
-// Écran 2 (nouveau) — Parcours catalogue : collection → article → taille/
-// couleur → quantité → coordonnées → livraison, avec récapitulatif de prix
-// en direct. Poste sur /commande/panier (et non /commande) pour ne pas
-// entrer en collision avec la route POST /commande ci-dessus tant que les
-// deux formulaires coexistent.
-Route::get('/commande', [CommandeCatalogueController::class, 'creer'])->name('commande.catalogue.creer');
-Route::post('/commande/panier', [CommandeCatalogueController::class, 'store'])->name('commande.catalogue.store');
-Route::get('/commande/catalogue.json', [CatalogueController::class, 'catalogueJson'])->name('commande.catalogue.json');
-
 // Écran 2 (V2) — La demande : formulaire court, textuel, sans images. La
 // cliente dépose des souhaits, la commande naît à la validation par la
-// gérante (revolution-v2-commande-validee-par-la-gerante.md §4). La bascule
-// de l'accueil vers ce parcours se fait en Phase 6.
-Route::get('/commande/demande', [DemandeController::class, 'creer'])->name('commande.demande.creer');
+// gérante (revolution-v2-commande-validee-par-la-gerante.md §4). C'est
+// désormais LE parcours : macommanderevolution.store/commande.
+Route::get('/commande', [DemandeController::class, 'creer'])->name('commande.demande.creer');
 Route::post('/commande/demande', [DemandeController::class, 'store'])
     ->middleware('throttle:5,60')
     ->name('commande.demande.store');
 Route::get('/commande/demande/{reference}/merci', [DemandeController::class, 'confirmation'])
     ->where('reference', '[A-Z0-9]{6}')
     ->name('commande.demande.merci');
+
+// Ancien parcours catalogue self-service (v1) — laissé en ligne deux
+// semaines en secours après la bascule (§11, Phase 6), plus aucun lien
+// public n'y mène. À retirer sur accord explicite de la gérante.
+Route::get('/commande/catalogue', [CommandeCatalogueController::class, 'creer'])->name('commande.catalogue.creer');
+Route::post('/commande/panier', [CommandeCatalogueController::class, 'store'])->name('commande.catalogue.store');
+Route::get('/commande/catalogue.json', [CatalogueController::class, 'catalogueJson'])->name('commande.catalogue.json');
 
 // Écran 3 — Confirmation + carte de fidélité (commune aux deux parcours)
 Route::get('/commande/{reference}', [CommandeController::class, 'show'])
