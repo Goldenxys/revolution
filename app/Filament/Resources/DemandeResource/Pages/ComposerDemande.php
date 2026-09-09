@@ -382,7 +382,11 @@ class ComposerDemande extends Page implements HasForms
         }
 
         return collect($souhaits)->map(function (array $s) {
-            $article = $this->resoudreArticle($s['article_nom'] ?? '');
+            // Le formulaire V2 enregistre l'id de l'article choisi : résolution
+            // exacte. `article_nom` sert de repli (demande importée, saisie
+            // libre d'une version future).
+            $article = (filled($s['article_id'] ?? null) ? Article::find($s['article_id']) : null)
+                ?? $this->resoudreArticle($s['article_nom'] ?? '');
             $taille = $this->resoudreTaille($s['taille'] ?? null);
             $couleur = $this->resoudreCouleur($s['couleur'] ?? null);
 

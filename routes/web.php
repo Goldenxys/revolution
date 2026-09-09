@@ -6,6 +6,7 @@ use App\Http\Controllers\CatalogueController;
 use App\Http\Controllers\ClientReconnaissanceController;
 use App\Http\Controllers\CommandeCatalogueController;
 use App\Http\Controllers\CommandeController;
+use App\Http\Controllers\DemandeController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,6 +30,18 @@ Route::post('/commande', [CommandeController::class, 'store'])->name('commande.s
 Route::get('/commande', [CommandeCatalogueController::class, 'creer'])->name('commande.catalogue.creer');
 Route::post('/commande/panier', [CommandeCatalogueController::class, 'store'])->name('commande.catalogue.store');
 Route::get('/commande/catalogue.json', [CatalogueController::class, 'catalogueJson'])->name('commande.catalogue.json');
+
+// Écran 2 (V2) — La demande : formulaire court, textuel, sans images. La
+// cliente dépose des souhaits, la commande naît à la validation par la
+// gérante (revolution-v2-commande-validee-par-la-gerante.md §4). La bascule
+// de l'accueil vers ce parcours se fait en Phase 6.
+Route::get('/commande/demande', [DemandeController::class, 'creer'])->name('commande.demande.creer');
+Route::post('/commande/demande', [DemandeController::class, 'store'])
+    ->middleware('throttle:5,60')
+    ->name('commande.demande.store');
+Route::get('/commande/demande/{reference}/merci', [DemandeController::class, 'confirmation'])
+    ->where('reference', '[A-Z0-9]{6}')
+    ->name('commande.demande.merci');
 
 // Écran 3 — Confirmation + carte de fidélité (commune aux deux parcours)
 Route::get('/commande/{reference}', [CommandeController::class, 'show'])
