@@ -3,10 +3,15 @@
 namespace Tests\Feature\V2;
 
 use App\Filament\Pages\TableauDeBord;
+use App\Filament\Resources\ArticleResource\Pages\ListArticles;
+use App\Filament\Resources\CollectionResource\Pages\ListCollections;
 use App\Filament\Resources\CommandeResource\Pages\ListCommandes;
+use App\Filament\Resources\CouleurResource\Pages\ManageCouleurs;
 use App\Filament\Resources\DemandeResource\Pages\ComposerDemande;
 use App\Filament\Resources\DemandeResource\Pages\ListDemandes;
 use App\Filament\Resources\StockResource\Pages\ListStock;
+use App\Filament\Resources\TailleResource\Pages\ManageTailles;
+use App\Filament\Resources\TypeArticleResource\Pages\ManageTypesArticles;
 use App\Models\Client;
 use App\Models\Commande;
 use App\Models\User;
@@ -80,6 +85,61 @@ class DidacticielTest extends TestCase
             ->test(ListCommandes::class)
             ->assertActionExists('guide_commandes')
             ->callAction('guide_commandes')
+            ->assertSuccessful();
+    }
+
+    public function test_le_bouton_guide_fonctionne_sur_les_articles(): void
+    {
+        $gerante = User::factory()->create();
+
+        Livewire::actingAs($gerante)
+            ->test(ListArticles::class)
+            ->assertActionExists('guide_articles')
+            ->callAction('guide_articles')
+            ->assertSuccessful();
+    }
+
+    public function test_le_bouton_guide_fonctionne_sur_les_collections(): void
+    {
+        $gerante = User::factory()->create();
+
+        Livewire::actingAs($gerante)
+            ->test(ListCollections::class)
+            ->assertActionExists('guide_collections')
+            ->callAction('guide_collections')
+            ->assertSuccessful();
+    }
+
+    public function test_le_bouton_guide_fonctionne_sur_les_types_darticle(): void
+    {
+        $gerante = User::factory()->create();
+
+        Livewire::actingAs($gerante)
+            ->test(ManageTypesArticles::class)
+            ->assertActionExists('guide_types')
+            ->callAction('guide_types')
+            ->assertSuccessful();
+    }
+
+    public function test_le_bouton_guide_fonctionne_sur_les_tailles(): void
+    {
+        $gerante = User::factory()->create();
+
+        Livewire::actingAs($gerante)
+            ->test(ManageTailles::class)
+            ->assertActionExists('guide_tailles')
+            ->callAction('guide_tailles')
+            ->assertSuccessful();
+    }
+
+    public function test_le_bouton_guide_fonctionne_sur_les_couleurs(): void
+    {
+        $gerante = User::factory()->create();
+
+        Livewire::actingAs($gerante)
+            ->test(ManageCouleurs::class)
+            ->assertActionExists('guide_couleurs')
+            ->callAction('guide_couleurs')
             ->assertSuccessful();
     }
 
