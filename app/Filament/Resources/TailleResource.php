@@ -47,8 +47,8 @@ class TailleResource extends Resource
                 ->minValue(0),
 
             Toggle::make('active')
-                ->label('Proposée aux clientes')
-                ->helperText('Désactivez une taille pour la retirer des formulaires sans perdre l\'historique.')
+                ->label('Taille active')
+                ->helperText('Depuis la V2, la cliente ne choisit plus de taille : ce réglage ne sert plus qu\'à la gérante, dans le compositeur de commande.')
                 ->default(true),
         ]);
     }
@@ -71,7 +71,7 @@ class TailleResource extends Resource
                     ->color('gray'),
 
                 ToggleColumn::make('active')
-                    ->label('Proposée'),
+                    ->label('Active'),
 
                 TextColumn::make('ordre')
                     ->label('Ordre')

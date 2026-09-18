@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\CommandeResource\Pages;
 
 use App\Filament\Resources\CommandeResource;
+use App\Filament\Support\GuideAction;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 
@@ -13,6 +14,8 @@ class ListCommandes extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            GuideAction::make('commandes'),
+
             Actions\Action::make('exporter')
                 ->label('Exporter la journée (CSV)')
                 ->icon('heroicon-o-arrow-down-tray')

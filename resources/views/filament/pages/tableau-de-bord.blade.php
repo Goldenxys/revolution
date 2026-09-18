@@ -22,7 +22,7 @@
 <x-filament-panels::page>
 
     {{-- Demandes à valider — le premier regard du matin (V2 §9) --}}
-    <a href="{{ $this->lienDemandes() }}"
+    <a data-tour="demandes-banner" href="{{ $this->lienDemandes() }}"
        class="flex items-center justify-between gap-4 rounded-2xl px-5 py-4 mb-4 ring-1 transition
               {{ $demandes > 0
                  ? 'bg-danger-50 dark:bg-danger-400/10 ring-danger-200 dark:ring-danger-400/20 hover:ring-danger-400'
@@ -56,7 +56,7 @@
     </div>
 
     {{-- Indicateurs --}}
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-2">
+    <div data-tour="cartes-jour" class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-2">
         @foreach ($cartes as $carte)
             @php $t = $tendances[$carte['cle']]; @endphp
 
@@ -94,7 +94,7 @@
     </div>
 
     {{-- Cumul du mois affiché --}}
-    <div class="grid grid-cols-2 gap-3 sm:gap-4 mb-2 text-center">
+    <div data-tour="mois" class="grid grid-cols-2 gap-3 sm:gap-4 mb-2 text-center">
         <div class="rounded-xl bg-gray-950/[0.03] dark:bg-white/[0.03] ring-1 ring-gray-950/[0.06] dark:ring-white/10 px-3 py-3">
             <p class="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">CA du mois</p>
             <p class="text-base sm:text-xl font-bold tabular-nums text-primary-600 dark:text-primary-400">{{ Francais::frais($mois['ca']) }}</p>
@@ -106,7 +106,7 @@
     </div>
 
     {{-- Commandes du jour --}}
-    <div class="-mx-4 sm:mx-0 overflow-x-auto">
+    <div data-tour="table-ventes" class="-mx-4 sm:mx-0 overflow-x-auto">
         {{ $this->table }}
     </div>
 
@@ -115,7 +115,7 @@
 
     {{-- Stock faible et ruptures --}}
     @if (\App\Filament\Widgets\StockAlerteWidget::canView())
-        <div class="-mx-4 sm:mx-0 overflow-x-auto">
+        <div data-tour="widget-stock" class="-mx-4 sm:mx-0 overflow-x-auto">
             @livewire(\App\Filament\Widgets\StockAlerteWidget::class)
         </div>
     @endif
@@ -146,5 +146,9 @@
     <div class="-mx-4 sm:mx-0 overflow-x-auto">
         @livewire(\App\Filament\Widgets\ClientsWidget::class)
     </div>
+
+    {{-- Visite guidée : lancée automatiquement une seule fois (mémorisé
+         côté navigateur), relançable depuis « Revoir le guide » ci-dessus. --}}
+    <script>window.RevoTour && window.RevoTour.autoStart('dashboard');</script>
 
 </x-filament-panels::page>

@@ -153,6 +153,7 @@ class StockResource extends Resource
                 Tables\Actions\Action::make('entree_stock')
                     ->label('Entrée de stock')
                     ->icon('heroicon-o-inbox-arrow-down')
+                    ->extraAttributes(['data-tour' => 'entree-stock'])
                     ->form([
                         Select::make('article_id')
                             ->label('Article')

@@ -108,8 +108,8 @@ class CollectionResource extends Resource
                         ->minValue(0),
 
                     Toggle::make('active')
-                        ->label('Visible sur le site')
-                        ->helperText('Désactivez pour préparer une collection sans la publier.')
+                        ->label('Collection active')
+                        ->helperText('Désactivez pour la retirer du choix de la gérante au compositeur, sans la supprimer.')
                         ->default(true),
                 ]),
         ]);
@@ -143,7 +143,7 @@ class CollectionResource extends Resource
                     ->color('gray'),
 
                 ToggleColumn::make('active')
-                    ->label('Visible'),
+                    ->label('Active'),
 
                 TextColumn::make('ordre')
                     ->label('Ordre')

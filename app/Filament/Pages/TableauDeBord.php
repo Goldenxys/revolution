@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Resources\DemandeResource;
+use App\Filament\Support\GuideAction;
 use App\Mail\RecapJournalier;
 use App\Models\Client;
 use App\Models\Commande;
@@ -253,6 +254,8 @@ class TableauDeBord extends Page implements HasTable
     protected function getHeaderActions(): array
     {
         return [
+            GuideAction::make('dashboard'),
+
             Action::make('exporter_jour')
                 ->label('Exporter la journée (CSV)')
                 ->icon('heroicon-o-arrow-down-tray')

@@ -4,6 +4,7 @@ namespace App\Filament\Resources\DemandeResource\Pages;
 
 use App\Filament\Resources\CommandeResource;
 use App\Filament\Resources\DemandeResource;
+use App\Filament\Support\GuideAction;
 use App\Models\Article;
 use App\Models\ArticleVariante;
 use App\Models\Client;
@@ -93,7 +94,7 @@ class ComposerDemande extends Page implements HasForms
                                     ->searchable()
                                     ->required()
                                     ->live()
-                                    ->columnSpan(5)
+                                    ->columnSpan(4)
                                     ->afterStateUpdated(function (Set $set, $state) {
                                         $article = $state ? Article::find($state) : null;
                                         $set('prix_unitaire', $article?->prix);
@@ -125,14 +126,14 @@ class ComposerDemande extends Page implements HasForms
                                     ->required(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_couleurs),
 
                                 TextInput::make('quantite')
-                                    ->label('Qté')
+                                    ->label('Quantité')
                                     ->numeric()
                                     ->default(1)
                                     ->minValue(1)
                                     ->maxValue(50)
                                     ->required()
                                     ->live(onBlur: true)
-                                    ->columnSpan(1),
+                                    ->columnSpan(2),
 
                                 TextInput::make('prix_unitaire')
                                     ->label('Prix unit.')
@@ -187,6 +188,7 @@ class ComposerDemande extends Page implements HasForms
                     ->columns(1),
 
                 Section::make('Montants')
+                    ->extraAttributes(['data-tour' => 'montants'])
                     ->schema([
                         Placeholder::make('recap')
                             ->hiddenLabel()
@@ -199,6 +201,8 @@ class ComposerDemande extends Page implements HasForms
     protected function getHeaderActions(): array
     {
         return [
+            GuideAction::make('composer'),
+
             Action::make('reprendre_souhaits')
                 ->label('Reprendre la demande de la cliente')
                 ->icon('heroicon-o-arrow-down-on-square-stack')
@@ -217,6 +221,7 @@ class ComposerDemande extends Page implements HasForms
             Action::make('valider')
                 ->label('Valider la commande')
                 ->icon('heroicon-o-check-badge')
+                ->extraAttributes(['data-tour' => 'valider-btn'])
                 ->requiresConfirmation()
                 ->modalHeading('Valider la commande ?')
                 ->modalDescription('Cette commande sera comptabilisée dans votre chiffre d\'affaires. Le stock des variantes vendues sera décrémenté et la cliente passera en commande validée.')

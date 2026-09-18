@@ -17,7 +17,7 @@
                 @if ($estMyVerse)
                     Indiquez votre verset. La gérante règle la taille, la couleur et confirme le montant juste après.
                 @else
-                    Reprenez ce qui a été convenu avec nous sur WhatsApp. La gérante confirme le montant définitif juste après.
+                    Prenez un petit instant pour remplir ce formulaire en vérifiant vos informations, votre facture vous sera ensuite envoyée.
                 @endif
             </p>
         </div>
@@ -131,7 +131,7 @@
                     <label for="precisions" class="block text-sm mb-2">
                         Précisions
                         <span class="text-texte-secondaire text-xs">
-                            {{ $estMyVerse ? '(couleur souhaitée, modèle, détail convenu…)' : "(article, modèle, référence d'une photo vue sur WhatsApp…)" }}
+                            {{ $estMyVerse ? '(couleur souhaitée, modèle, détail convenu…)' : "(nom de l'article)" }}
                         </span>
                     </label>
                     <textarea id="precisions" name="precisions" rows="3" maxlength="500"

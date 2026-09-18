@@ -8,7 +8,7 @@
     <div class="grid gap-6 lg:grid-cols-[minmax(0,22rem),1fr]">
 
         {{-- À gauche — ce que la cliente a dit. Lecture seule, jamais modifiable. --}}
-        <aside class="space-y-4">
+        <aside data-tour="souhaits" class="space-y-4">
             <x-filament::section>
                 <x-slot name="heading">La cliente</x-slot>
 

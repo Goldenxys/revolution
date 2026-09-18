@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\DemandeResource\Pages;
 
 use App\Filament\Resources\DemandeResource;
+use App\Filament\Support\GuideAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListDemandes extends ListRecords
@@ -16,6 +17,8 @@ class ListDemandes extends ListRecords
 
     protected function getHeaderActions(): array
     {
-        return [];
+        return [
+            GuideAction::make('demandes'),
+        ];
     }
 }

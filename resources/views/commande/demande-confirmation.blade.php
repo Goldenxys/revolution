@@ -22,13 +22,9 @@
             </svg>
             <h1 class="text-2xl sm:text-3xl font-semibold text-encre mb-4 tracking-tight">Commande enregistrée</h1>
             <p class="text-[15px] leading-relaxed text-encre/90 max-w-[520px] mx-auto text-pretty">
-                Merci {{ $client->nom }}. Nous confirmons le contenu et le montant définitif très vite, puis nous vous
-                recontactons au {{ $client->telephone }} pour la livraison à {{ $commande->commune }}.
+                Merci d'avoir rempli le formulaire. Le livreur vous contactera à la date indiquée pour la livraison.
+                Votre reçu de paiement vous sera envoyé par e-mail ou par WhatsApp.
             </p>
-            <p class="mt-3 text-xs uppercase tracking-wide text-texte-secondaire">Référence {{ $commande->reference }}</p>
-            @if ($client->email)
-                <p class="mt-2 text-[13px] text-texte-secondaire">Votre reçu partira à {{ $client->email }} dès la validation.</p>
-            @endif
         </div>
 
         {{-- Carte de fidélité --}}

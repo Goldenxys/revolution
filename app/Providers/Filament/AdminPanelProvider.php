@@ -11,7 +11,6 @@ use Filament\Support\Assets\Js;
 use Filament\Support\Colors\Color;
 use Filament\Support\Facades\FilamentAsset;
 use Filament\View\PanelsRenderHook;
-use Filament\Widgets;
 use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -31,6 +30,14 @@ class AdminPanelProvider extends PanelProvider
         FilamentAsset::register([
             Js::make('revo-notification-son', __DIR__.'/../../../resources/js/filament/notification-son.js'),
         ], package: 'revolution/notification-son');
+
+        // Visite guidée de l'Espace RÉVOLUTION (resources/js/filament/revo-tour.js) :
+        // sans dépendance externe, se lance depuis le bouton « Revoir le guide »
+        // de chaque écran (App\Filament\Support\GuideAction) ou automatiquement
+        // une seule fois sur le tableau de bord.
+        FilamentAsset::register([
+            Js::make('revo-tour', __DIR__.'/../../../resources/js/filament/revo-tour.js'),
+        ], package: 'revolution/tour');
     }
 
     public function panel(Panel $panel): Panel

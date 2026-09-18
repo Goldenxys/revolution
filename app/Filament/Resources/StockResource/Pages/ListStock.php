@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\StockResource\Pages;
 
 use App\Filament\Resources\StockResource;
+use App\Filament\Support\GuideAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListStock extends ListRecords
@@ -12,5 +13,12 @@ class ListStock extends ListRecords
     public function getTitle(): string
     {
         return 'Mon stock';
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            GuideAction::make('stock'),
+        ];
     }
 }

@@ -7,6 +7,7 @@ use App\Models\Article;
 use App\Models\ArticleVariante;
 use App\Models\Couleur;
 use App\Models\Taille;
+use App\Support\Francais;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Section as FormSection;
 use Filament\Forms\Components\Select;
@@ -28,7 +29,6 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
-use App\Support\Francais;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Str;
@@ -125,8 +125,8 @@ class ArticleResource extends Resource
                                         ->columnSpanFull(),
 
                                     Toggle::make('active')
-                                        ->label('Visible sur le site')
-                                        ->helperText('Un article reste masqué automatiquement tant qu\'aucune combinaison n\'est disponible, même actif.')
+                                        ->label('Article actif')
+                                        ->helperText('Depuis la V2, la cliente ne parcourt plus le catalogue : ce réglage détermine si l\'article est proposé à la gérante dans le compositeur de commande.')
                                         ->default(true)
                                         ->columnSpanFull(),
                                 ]),
@@ -193,7 +193,7 @@ class ArticleResource extends Resource
                     }),
 
                 ToggleColumn::make('active')
-                    ->label('Visible'),
+                    ->label('Actif'),
             ])
             ->filters([
                 SelectFilter::make('collection_id')
@@ -205,7 +205,7 @@ class ArticleResource extends Resource
                     ->relationship('typeArticle', 'nom'),
 
                 TernaryFilter::make('active')
-                    ->label('Visible'),
+                    ->label('Actif'),
 
                 Filter::make('epuises')
                     ->label('Articles épuisés')
