@@ -109,6 +109,68 @@
                 texte: "Ouvrez une commande pour changer son statut de livraison, télécharger le reçu, l'envoyer par WhatsApp ou l'annuler si besoin.",
             },
         ],
+
+        // --- Catalogue -----------------------------------------------------
+        articles: [
+            {
+                selector: '.fi-header',
+                titre: 'Vos articles',
+                texte: "Chaque article du catalogue : nom, collection, type, prix, photo. C'est ce que la gérante retrouve et choisit dans le compositeur de commande.",
+            },
+            {
+                selector: '.fi-ta-ctn',
+                titre: 'Disponibilité et actif',
+                texte: "La colonne Disponibilité montre le nombre de variantes réellement en stock (ex. 8/12). Le bouton Actif détermine si l'article est proposé à la gérante au compositeur.",
+            },
+        ],
+        collections: [
+            {
+                selector: '.fi-header',
+                titre: 'Vos collections',
+                texte: "My Verse, et toutes les autres. Une collection désactivée disparaît du choix de la gérante au compositeur, sans rien supprimer.",
+            },
+            {
+                selector: '.fi-ta-ctn',
+                titre: 'Verset et modèles',
+                texte: 'La colonne Verset indique si la collection réclame un verset (comme My Verse) — ça active le champ dédié dans le compositeur.',
+            },
+        ],
+        types: [
+            {
+                selector: '.fi-header',
+                titre: "Types d'article",
+                texte: "Tee-shirt, Pull, Tote bag… chaque type précise s'il gère des tailles et/ou des couleurs, ce qui adapte automatiquement le compositeur et le catalogue.",
+            },
+            {
+                selector: '.fi-ta-ctn',
+                titre: 'Un type par article',
+                texte: "Chaque article est rattaché à un seul type. Désactivez un type inutilisé plutôt que de le supprimer : l'historique reste intact.",
+            },
+        ],
+        tailles: [
+            {
+                selector: '.fi-header',
+                titre: 'Tailles',
+                texte: 'M, L, XL, XXL… la liste que la gérante retrouve dans le compositeur pour composer chaque ligne de commande.',
+            },
+            {
+                selector: '.fi-ta-ctn',
+                titre: 'Active',
+                texte: "Depuis la V2, seule la gérante choisit la taille : ce réglage ne sert plus qu'au compositeur, plus au formulaire client.",
+            },
+        ],
+        couleurs: [
+            {
+                selector: '.fi-header',
+                titre: 'Couleurs',
+                texte: 'La palette disponible pour vos articles, avec son code visuel.',
+            },
+            {
+                selector: '.fi-ta-ctn',
+                titre: 'Active',
+                texte: "Comme pour les tailles, seule la gérante choisit la couleur depuis la V2 — ce réglage ne sert plus qu'au compositeur.",
+            },
+        ],
     };
 
     var etat = null; // { page, steps, index, els: {overlay, halo, bulle} }
