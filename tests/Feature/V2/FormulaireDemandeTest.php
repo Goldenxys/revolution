@@ -138,6 +138,44 @@ class FormulaireDemandeTest extends TestCase
             ->assertSee('comptée dès sa validation');
     }
 
+    /**
+     * Geste de clôture (§ mise à jour) : la carte téléchargeable compte la
+     * demande tout juste déposée comme si elle était déjà validée, même si
+     * l'écran affiché reste honnête sur ce qui est réellement validé.
+     */
+    public function test_le_bouton_de_telechargement_projette_la_commande_en_cours_comme_validee(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        User::factory()->create();
+
+        // Cliente déjà à 1 commande validée : la demande qu'elle vient de
+        // déposer serait sa 2ᵉ, palier qui débloque -15 %.
+        $client = Client::create([
+            'cle' => Client::cleDepuisTelephone('0102030405'),
+            'nom' => 'Aya Kouassi', 'telephone' => '0102030405',
+            'nb_commandes' => 1, 'statut' => 'client', 'numero_client' => 'REV-C-0001',
+        ]);
+
+        $this->post(route('commande.demande.store'), [
+            'nom' => 'Aya Kouassi', 'telephone' => '0102030405',
+            'collection' => 'autre', 'commune' => 'Cocody', 'mode_livraison' => 'livreur',
+        ]);
+
+        $commande = Commande::first();
+
+        $response = $this->get(route('commande.demande.merci', $commande->reference));
+        $response->assertOk()
+            ->assertSee('Télécharger ma carte de fidélité')
+            ->assertSee('carteFidelite(', false)
+            ->assertSee('nbCommandes: 2', false)
+            ->assertSee('palier: 2', false)
+            ->assertSee('avantage: 15', false);
+
+        // L'écran, lui, reste honnête : encore 1 commande validée affichée.
+        $response->assertSee('1 commande validée');
+    }
+
     public function test_une_demande_deja_validee_ne_montre_plus_la_page_merci(): void
     {
         $client = Client::create(['cle' => '00000009', 'nom' => 'X', 'telephone' => '0700000009', 'nb_commandes' => 0]);

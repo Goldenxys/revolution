@@ -5,11 +5,22 @@
     $messagePartage = "Je viens de commander chez RÉVOLUTION — même ta garde-robe intéresse JÉSUS ! Découvrez la marque : ".url('/');
     $lienWhatsapp = 'https://wa.me/?text='.rawurlencode($messagePartage);
 
-    // La carte annonce le palier issu des commandes VALIDÉES. La demande qui
-    // vient d'être déposée ne compte pas encore.
+    // La carte AFFICHÉE À L'ÉCRAN annonce le palier issu des commandes
+    // VALIDÉES — honnête, la demande qui vient d'être déposée ne compte pas
+    // encore (voir la mention en bas de carte).
     $nbValidees = $client->nb_commandes ?? 0;
     $palier = $nbValidees > 0 ? ((($nbValidees - 1) % 8) + 1) : 0;
     $avantage = \App\Models\Client::avantagePourNumero($nbValidees);
+
+    // La carte TÉLÉCHARGÉE, elle, compte la demande tout juste déposée comme
+    // si elle était déjà validée : c'est le geste de clôture voulu par la
+    // gérante — la cliente repart avec quelque chose de concret en main.
+    $nbProjete = $nbValidees + 1;
+    $palierProjete = (($nbProjete - 1) % 8) + 1;
+    $avantageProjete = \App\Models\Client::avantagePourNumero($nbProjete);
+    $seuilSuivantProjete = collect(array_keys($paliers))->first(fn ($s) => $s > $palierProjete) ?? array_key_first($paliers);
+    $commandesRestantesProjete = $avantageProjete ? 0 : max(1, $seuilSuivantProjete - $palierProjete);
+    $prochainAvantageProjete = $paliers[$seuilSuivantProjete];
 @endphp
 
 <x-public-layout :titre="'RÉVOLUTION — Commande enregistrée'">
@@ -69,7 +80,25 @@
             </p>
         </div>
 
-        <div class="space-y-3">
+        <div
+            x-data="carteFidelite({
+                nom: @js($client->nom),
+                nbCommandes: {{ $nbProjete }},
+                palier: {{ $palierProjete }},
+                avantage: {{ $avantageProjete ?? 'null' }},
+                prochainAvantage: {{ $prochainAvantageProjete }},
+                commandesRestantes: {{ $commandesRestantesProjete }},
+                paliers: @js($paliers),
+                logoUrl: @js(asset('img/logo-revolution.png')),
+            })"
+            class="space-y-3"
+        >
+            <button type="button" @click="telecharger()" :disabled="telechargementEnCours"
+                    class="w-full bg-rouille text-white py-4 text-sm uppercase tracking-wide font-medium transition hover:bg-rouille/90 disabled:opacity-60 rounded-none">
+                <span x-show="!telechargementEnCours">Télécharger ma carte de fidélité</span>
+                <span x-show="telechargementEnCours" x-cloak>Génération…</span>
+            </button>
+
             <a href="{{ $lienWhatsapp }}" target="_blank" rel="noopener"
                class="block w-full text-center border border-filet text-encre py-4 text-sm uppercase tracking-wide font-medium transition hover:border-rouille rounded-none">
                 Partager sur WhatsApp

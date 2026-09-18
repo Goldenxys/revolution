@@ -11,6 +11,7 @@ use App\Models\CommandeLigne;
 use App\Models\Parametre;
 use App\Support\Francais;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Tables;
@@ -256,22 +257,28 @@ class TableauDeBord extends Page implements HasTable
         return [
             GuideAction::make('dashboard'),
 
-            Action::make('exporter_jour')
-                ->label('Exporter la journée (CSV)')
-                ->icon('heroicon-o-arrow-down-tray')
-                ->color('gray')
-                ->url(fn () => route('admin.export.commandes', ['date' => $this->date]))
-                ->openUrlInNewTab(),
+            // Les deux exports fusionnent dans un seul menu : quatre boutons
+            // séparés dans l'en-tête retombaient à la ligne et cassaient
+            // l'alignement du titre sur les écrans moyens.
+            ActionGroup::make([
+                Action::make('exporter_jour')
+                    ->label('Commandes du jour (CSV)')
+                    ->icon('heroicon-o-shopping-bag')
+                    ->url(fn () => route('admin.export.commandes', ['date' => $this->date]))
+                    ->openUrlInNewTab(),
 
-            Action::make('exporter_clients')
-                ->label('Exporter les clients (CSV)')
+                Action::make('exporter_clients')
+                    ->label('Clientes (CSV)')
+                    ->icon('heroicon-o-users')
+                    ->url(route('admin.export.clients'))
+                    ->openUrlInNewTab(),
+            ])
+                ->label('Exporter')
                 ->icon('heroicon-o-arrow-down-tray')
-                ->color('gray')
-                ->url(route('admin.export.clients'))
-                ->openUrlInNewTab(),
+                ->color('gray'),
 
             Action::make('recap_mail')
-                ->label('Recevoir le récap du jour par mail')
+                ->label('Récap du jour par e-mail')
                 ->icon('heroicon-o-envelope')
                 ->color('primary')
                 ->action(function () {

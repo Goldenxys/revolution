@@ -86,7 +86,11 @@ class ComposerDemande extends Page implements HasForms
                             ->addActionLabel('Ajouter une ligne')
                             ->reorderable(false)
                             ->defaultItems(1)
-                            ->columns(12)
+                            // Grille responsive : un champ par ligne sur téléphone, deux
+                            // rangées bien remplies à partir de l'écran large — jamais
+                            // les 5 champs compressés sur une même ligne (texte des
+                            // select qui retombe à la ligne, quantité/prix écrasés).
+                            ->columns(['sm' => 2, 'lg' => 12])
                             ->schema([
                                 Select::make('article_id')
                                     ->label('Article')
@@ -94,7 +98,7 @@ class ComposerDemande extends Page implements HasForms
                                     ->searchable()
                                     ->required()
                                     ->live()
-                                    ->columnSpan(4)
+                                    ->columnSpan(['sm' => 2, 'lg' => 6])
                                     ->afterStateUpdated(function (Set $set, $state) {
                                         $article = $state ? Article::find($state) : null;
                                         $set('prix_unitaire', $article?->prix);
@@ -111,8 +115,9 @@ class ComposerDemande extends Page implements HasForms
                                     ->label('Taille')
                                     ->options(fn () => Taille::query()->actives()->orderBy('ordre')->pluck('libelle', 'id'))
                                     ->native(false)
+                                    ->placeholder('—')
                                     ->live()
-                                    ->columnSpan(2)
+                                    ->columnSpan(['sm' => 1, 'lg' => 3])
                                     ->visible(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_tailles)
                                     ->required(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_tailles),
 
@@ -120,8 +125,9 @@ class ComposerDemande extends Page implements HasForms
                                     ->label('Couleur')
                                     ->options(fn () => Couleur::query()->actives()->orderBy('ordre')->pluck('nom', 'id'))
                                     ->native(false)
+                                    ->placeholder('—')
                                     ->live()
-                                    ->columnSpan(2)
+                                    ->columnSpan(['sm' => 1, 'lg' => 3])
                                     ->visible(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_couleurs)
                                     ->required(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_couleurs),
 
@@ -133,7 +139,7 @@ class ComposerDemande extends Page implements HasForms
                                     ->maxValue(50)
                                     ->required()
                                     ->live(onBlur: true)
-                                    ->columnSpan(2),
+                                    ->columnSpan(['sm' => 1, 'lg' => 6]),
 
                                 TextInput::make('prix_unitaire')
                                     ->label('Prix unit.')
@@ -142,11 +148,11 @@ class ComposerDemande extends Page implements HasForms
                                     ->required()
                                     ->live(onBlur: true)
                                     ->suffix('F')
-                                    ->columnSpan(2),
+                                    ->columnSpan(['sm' => 1, 'lg' => 6]),
 
                                 Placeholder::make('stock_info')
                                     ->hiddenLabel()
-                                    ->columnSpan(12)
+                                    ->columnSpanFull()
                                     ->content(fn (Get $get): Htmlable => static::indicationStock(
                                         $get('article_id'),
                                         $get('taille_id'),
@@ -155,12 +161,12 @@ class ComposerDemande extends Page implements HasForms
 
                                 TextInput::make('verset')
                                     ->label('Verset (référence + texte)')
-                                    ->columnSpan(6)
+                                    ->columnSpan(['sm' => 2, 'lg' => 6])
                                     ->visible(fn (Get $get) => (bool) Article::find($get('article_id'))?->collection?->verset_requis),
 
                                 TextInput::make('modele')
                                     ->label('Modèle')
-                                    ->columnSpan(6)
+                                    ->columnSpan(['sm' => 2, 'lg' => 6])
                                     ->visible(fn (Get $get) => filled(Article::find($get('article_id'))?->collection?->modeles_disponibles)),
                             ]),
                     ]),
