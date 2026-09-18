@@ -151,6 +151,11 @@ class DidacticielTest extends TestCase
             ->get('/'.config('revolution.admin_path'))
             ->assertOk()
             ->assertSee('window.RevoTour', false)
-            ->assertSee('data-tour="demandes-banner"', false);
+            ->assertSee('data-tour="demandes-banner"', false)
+            // Chargé sous le package 'app' (et non un nom de paquet fixe) :
+            // c'est ce qui permet à FilamentAsset::appVersion() de casser le
+            // cache CDN/navigateur à chaque déploiement — voir
+            // AdminPanelProvider::versionApplicative().
+            ->assertSee('/js/app/revo-tour.js?v=', false);
     }
 }
