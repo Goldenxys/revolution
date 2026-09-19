@@ -28,8 +28,10 @@ class RecuCommande extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
+        // Volontairement sans référence : « Reçu RÉVOLUTION » suffit, la
+        // cliente reconnaît l'e-mail au premier coup d'œil dans sa boîte.
         return new Envelope(
-            subject: "Votre commande est validée — {$this->commande->reference}",
+            subject: 'Reçu RÉVOLUTION',
         );
     }
 

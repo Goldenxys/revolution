@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\V2;
 
+use App\Events\CommandeValidee;
+use App\Listeners\EnvoyerRecuEtNotifierVente;
 use App\Mail\DemandeRecue;
 use App\Mail\RecuCommande;
 use App\Mail\VenteRealisee;
@@ -52,6 +54,49 @@ class RecuEtEmailsTest extends TestCase
         Mail::assertQueued(VenteRealisee::class);
 
         $this->assertDatabaseHas('commande_journal', ['commande_id' => $commande->id, 'evenement' => 'pdf_genere']);
+    }
+
+    /**
+     * L'objet ne porte plus la référence (mise à jour) : juste « Reçu
+     * RÉVOLUTION », reconnaissable au premier coup d'œil dans la boîte mail.
+     */
+    public function test_le_recu_a_pour_objet_recu_revolution_sans_reference(): void
+    {
+        Storage::fake('local');
+        Mail::fake();
+        $gerante = User::factory()->create();
+        [, $commande] = $this->demandeValidable();
+
+        $commande->valider($gerante);
+
+        Mail::assertQueued(RecuCommande::class, function (RecuCommande $mail) use ($commande) {
+            $sujet = $mail->envelope()->subject;
+
+            return $sujet === 'Reçu RÉVOLUTION' && ! str_contains($sujet, $commande->reference);
+        });
+    }
+
+    /**
+     * Garde-fou anti-doublon : si CommandeValidee est livré deux fois pour
+     * la même commande (retry de file, événement rejoué), le reçu
+     * automatique ne repart pas une seconde fois côté cliente.
+     */
+    public function test_le_recu_automatique_ne_part_jamais_deux_fois(): void
+    {
+        Storage::fake('local');
+        Mail::fake();
+        $gerante = User::factory()->create();
+        [, $commande] = $this->demandeValidable();
+        $commande->valider($gerante);
+        $commande->refresh();
+
+        // Deuxième livraison de l'événement, comme le ferait un retry.
+        (new EnvoyerRecuEtNotifierVente)->handle(new CommandeValidee($commande));
+
+        // 1 reçu cliente + 1 « vente réalisée » gérante — jamais 2 + 2.
+        Mail::assertQueuedCount(2);
+        Mail::assertQueued(RecuCommande::class, 1);
+        Mail::assertQueued(VenteRealisee::class, 1);
     }
 
     public function test_sans_email_cliente_seul_le_mail_gerante_part(): void

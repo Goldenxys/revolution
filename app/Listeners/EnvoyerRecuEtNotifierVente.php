@@ -39,7 +39,12 @@ class EnvoyerRecuEtNotifierVente implements ShouldQueue
             Log::error('Reçu PDF non généré', ['commande' => $commande->reference, 'erreur' => $e->getMessage()]);
         }
 
-        if (filled($commande->client?->email)) {
+        // Garde-fou anti-doublon : si CommandeValidee était (re)livré une
+        // deuxième fois pour la même commande — retry de file, événement
+        // rejoué — aucun des deux e-mails ne repart une seconde fois. Le
+        // bouton « Renvoyer le reçu » (ViewCommande) reste, lui, volontaire
+        // et non concerné : il consigne un type distinct ('recu_renvoi').
+        if (filled($commande->client?->email) && ! $this->dejaEnvoye($commande, 'recu')) {
             try {
                 Mail::to($commande->client->email)->queue(new RecuCommande($commande));
                 CommandeJournal::consigner($commande, 'email_envoye', ['destinataire' => 'cliente', 'type' => 'recu']);
@@ -48,12 +53,23 @@ class EnvoyerRecuEtNotifierVente implements ShouldQueue
             }
         }
 
-        try {
-            Mail::to(Parametre::emailReception())->queue(new VenteRealisee($commande, $this->caDuJour($commande)));
-            CommandeJournal::consigner($commande, 'email_envoye', ['destinataire' => 'gerante', 'type' => 'vente_realisee']);
-        } catch (\Throwable $e) {
-            Log::error('E-mail « vente réalisée » non envoyé', ['commande' => $commande->reference, 'erreur' => $e->getMessage()]);
+        if (! $this->dejaEnvoye($commande, 'vente_realisee')) {
+            try {
+                Mail::to(Parametre::emailReception())->queue(new VenteRealisee($commande, $this->caDuJour($commande)));
+                CommandeJournal::consigner($commande, 'email_envoye', ['destinataire' => 'gerante', 'type' => 'vente_realisee']);
+            } catch (\Throwable $e) {
+                Log::error('E-mail « vente réalisée » non envoyé', ['commande' => $commande->reference, 'erreur' => $e->getMessage()]);
+            }
         }
+    }
+
+    private function dejaEnvoye(Commande $commande, string $type): bool
+    {
+        return CommandeJournal::query()
+            ->where('commande_id', $commande->id)
+            ->where('evenement', 'email_envoye')
+            ->where('details->type', $type)
+            ->exists();
     }
 
     /**

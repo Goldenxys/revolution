@@ -425,7 +425,7 @@ class ComposerDemande extends Page implements HasForms
 
     public function getTitle(): string|Htmlable
     {
-        return 'Composer — '.$this->record->reference;
+        return 'Composer et valider';
     }
 
     public function getBreadcrumb(): string
