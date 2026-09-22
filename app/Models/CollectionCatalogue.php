@@ -22,6 +22,7 @@ class CollectionCatalogue extends Model
         'image',
         'verset_requis',
         'modeles_disponibles',
+        'gere_stock',
         'ordre',
         'active',
     ];
@@ -29,6 +30,7 @@ class CollectionCatalogue extends Model
     protected $casts = [
         'verset_requis' => 'boolean',
         'modeles_disponibles' => 'array',
+        'gere_stock' => 'boolean',
         'active' => 'boolean',
         'ordre' => 'integer',
     ];

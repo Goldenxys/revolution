@@ -55,6 +55,19 @@ class Article extends Model
         return (bool) $this->typeArticle?->gere_couleurs;
     }
 
+    /**
+     * Faux pour une collection fabriquée à la demande (ex. My verse) : la
+     * gérante compose taille/couleur librement au compositeur, sans jamais
+     * être bloquée par une rupture qui n'a pas de sens pour un article sans
+     * pièces en réserve. Vrai par défaut (collection absente ou sans
+     * préférence explicite) pour ne rien changer au comportement des
+     * collections stockées.
+     */
+    public function getGereStockAttribute(): bool
+    {
+        return $this->collection?->gere_stock ?? true;
+    }
+
     public function estEpuise(): bool
     {
         return ! $this->variantes()->where('disponible', true)->exists();

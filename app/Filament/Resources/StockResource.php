@@ -63,7 +63,11 @@ class StockResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->with(['article.collection', 'taille', 'couleur']))
+            ->modifyQueryUsing(fn (Builder $query) => $query
+                ->with(['article.collection', 'taille', 'couleur'])
+                // Une collection fabriquée à la demande (My verse) n'a rien
+                // à faire ici : pas de pièces en réserve à piloter.
+                ->whereDoesntHave('article.collection', fn (Builder $qc) => $qc->where('gere_stock', false)))
             ->defaultSort('article_id')
             ->columns([
                 TextColumn::make('article.nom')
@@ -169,7 +173,11 @@ class StockResource extends Resource
                     ->form([
                         Select::make('article_id')
                             ->label('Article')
-                            ->options(fn () => Article::query()->where('active', true)->orderBy('nom')->pluck('nom', 'id'))
+                            ->options(fn () => Article::query()
+                                ->where('active', true)
+                                ->whereDoesntHave('collection', fn (Builder $qc) => $qc->where('gere_stock', false))
+                                ->orderBy('nom')
+                                ->pluck('nom', 'id'))
                             ->searchable()
                             ->required()
                             ->live(),

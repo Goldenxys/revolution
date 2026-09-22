@@ -97,6 +97,15 @@ class CollectionResource extends Resource
                         ->columnSpanFull(),
                 ]),
 
+            FormSection::make('Stock')
+                ->description('Désactivez pour une collection fabriquée à la demande (ex. My verse) : la gérante choisit librement taille et couleur au compositeur, sans jamais être bloquée par une rupture qui n\'a pas de sens sans pièces en réserve.')
+                ->schema([
+                    Toggle::make('gere_stock')
+                        ->label('Gérer le stock de cette collection')
+                        ->helperText('Activé par défaut. Les articles de cette collection n\'apparaissent plus dans « Mon stock » une fois désactivé.')
+                        ->default(true),
+                ]),
+
             FormSection::make('Affichage')
                 ->columns(2)
                 ->schema([
@@ -135,6 +144,11 @@ class CollectionResource extends Resource
                 IconColumn::make('verset_requis')
                     ->label('Verset')
                     ->boolean(),
+
+                IconColumn::make('gere_stock')
+                    ->label('Stock')
+                    ->boolean()
+                    ->tooltip(fn (CollectionCatalogue $record) => $record->gere_stock ? 'Stock géré' : 'Fabriqué à la demande, sans stock'),
 
                 TextColumn::make('articles_count')
                     ->label('Articles')

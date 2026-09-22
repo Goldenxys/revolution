@@ -127,6 +127,28 @@ class StockEtTableauDeBordTest extends TestCase
             ->assertCanNotSeeTableRecords([$varianteM]);
     }
 
+    /**
+     * My verse est fabriqué à la demande, sans pièces en réserve : ses
+     * variantes n'ont rien à faire sur l'écran « Mon stock ».
+     */
+    public function test_lecran_mon_stock_exclut_les_collections_fabriquees_a_la_demande(): void
+    {
+        $gerante = User::factory()->create();
+        $collectionStockee = CollectionCatalogue::create(['nom' => 'C', 'slug' => 'c']);
+        $myVerse = CollectionCatalogue::create(['nom' => 'My verse', 'slug' => 'my_verse', 'gere_stock' => false]);
+        $type = TypeArticle::create(['nom' => 'T', 'slug' => 't', 'gere_tailles' => false, 'gere_couleurs' => false]);
+
+        $articleStocke = Article::create(['collection_id' => $collectionStockee->id, 'type_article_id' => $type->id, 'nom' => 'Art', 'slug' => 'art', 'prix' => 7000]);
+        $articleMyVerse = Article::create(['collection_id' => $myVerse->id, 'type_article_id' => $type->id, 'nom' => 'Tee my verse', 'slug' => 'tee-my-verse', 'prix' => 7000]);
+
+        $varianteStockee = ArticleVariante::create(['article_id' => $articleStocke->id, 'disponible' => true, 'stock' => 5]);
+        $varianteMyVerse = ArticleVariante::create(['article_id' => $articleMyVerse->id, 'disponible' => true, 'stock' => null]);
+
+        Livewire::actingAs($gerante)->test(ListStock::class)
+            ->assertCanSeeTableRecords([$varianteStockee])
+            ->assertCanNotSeeTableRecords([$varianteMyVerse]);
+    }
+
     public function test_le_tableau_de_bord_se_charge(): void
     {
         Storage::fake('local');

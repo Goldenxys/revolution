@@ -109,19 +109,28 @@ class ArticleVariante extends Model
 
     /**
      * Vrai si la variante peut être vendue maintenant : en vente ET (stock
-     * non suivi — NULL, toujours considéré disponible — OU stock > 0).
-     * Distinct de `disponible` seul : sert à bloquer la sélection d'une
-     * variante en rupture dans le compositeur de commande, là où
-     * `disponible` gate déjà la visibilité du catalogue public.
+     * non suivi — NULL, toujours considéré disponible — OU stock > 0 — OU
+     * la collection ne gère pas le stock, ex. My verse fabriqué à la
+     * demande : une rupture n'a alors aucun sens, même si un stock
+     * numérique traîne encore sur la variante). Distinct de `disponible`
+     * seul : sert à bloquer la sélection d'une variante en rupture dans le
+     * compositeur de commande, là où `disponible` gate déjà la visibilité
+     * du catalogue public.
      */
     public function estAchetable(): bool
     {
-        return $this->disponible && ($this->stock === null || $this->stock > 0);
+        if (! $this->disponible) {
+            return false;
+        }
+
+        return $this->stock === null || $this->stock > 0 || $this->article?->gere_stock === false;
     }
 
     public function scopeAchetable(Builder $query): Builder
     {
         return $query->where('disponible', true)
-            ->where(fn (Builder $q) => $q->whereNull('stock')->orWhere('stock', '>', 0));
+            ->where(fn (Builder $q) => $q->whereNull('stock')
+                ->orWhere('stock', '>', 0)
+                ->orWhereHas('article.collection', fn (Builder $qc) => $qc->where('gere_stock', false)));
     }
 }
