@@ -41,10 +41,20 @@ class CatalogueSeederTest extends TestCase
 
         $this->assertTrue(Article::where('nom', 'like', '%Tote bag%')->exists());
 
-        // Chaque article créé démarre avec toute sa grille cochée disponible.
+        // Un article d'une collection au stock géré démarre avec toute sa
+        // grille créée (prête à recevoir du stock) mais épuisé : rien n'est
+        // disponible tant qu'aucun stock réel n'est enregistré.
         $article = Article::where('nom', 'Tee-shirt Couronne d\'épine')->first();
         $this->assertNotNull($article);
-        $this->assertFalse($article->estEpuise());
+        $this->assertTrue($article->gere_stock);
+        $this->assertTrue($article->estEpuise());
+        $this->assertSame(28, $article->variantes()->count()); // 4 tailles × 7 couleurs
+
+        // My verse (fabriqué à la demande) garde sa grille cochée manuellement.
+        $myVerse = Article::where('nom', 'Pull-Over My verse Modèle 1')->first();
+        $this->assertNotNull($myVerse);
+        $this->assertFalse($myVerse->gere_stock);
+        $this->assertFalse($myVerse->estEpuise());
     }
 
     public function test_relancer_le_seeder_est_sans_effet_idempotent(): void

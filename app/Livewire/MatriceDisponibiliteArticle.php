@@ -6,6 +6,7 @@ use App\Models\Article;
 use App\Models\ArticleVariante;
 use App\Models\Couleur;
 use App\Models\Taille;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -34,11 +35,14 @@ class MatriceDisponibiliteArticle extends Component
 
     public bool $gereCouleurs = true;
 
+    public bool $gereStock = true;
+
     public function mount(Article $article): void
     {
         $this->article = $article;
         $this->gereTailles = $article->gere_tailles;
         $this->gereCouleurs = $article->gere_couleurs;
+        $this->gereStock = $article->gere_stock;
         $this->chargerEtat();
     }
 
@@ -86,8 +90,34 @@ class MatriceDisponibiliteArticle extends Component
         return $this->etat[$this->cle($tailleId, $couleurId)] ?? false;
     }
 
+    /**
+     * Pour une collection au stock géré, cette grille n'est plus qu'un
+     * affichage : `disponible` est désormais dérivé du stock enregistré
+     * dans « Mon stock » (ArticleVariante::booted()), la gérante ne peut
+     * plus le cocher à la main ici. Renvoie true (et prévient) si l'action
+     * appelante doit s'arrêter là.
+     */
+    private function bloqueSiStockGere(): bool
+    {
+        if (! $this->gereStock) {
+            return false;
+        }
+
+        Notification::make()
+            ->title('Disponibilité calculée depuis le stock')
+            ->body('Cette collection gère son stock : la disponibilité suit automatiquement les quantités enregistrées dans « Mon stock », elle ne se coche plus ici.')
+            ->warning()
+            ->send();
+
+        return true;
+    }
+
     private function basculer(?int $tailleId, ?int $couleurId, bool $disponible): void
     {
+        // Atteint uniquement pour une collection fabriquée à la demande
+        // (bloqueSiStockGere() arrête tout le reste plus haut) : le stock
+        // ne dérive rien ici, la valeur demandée est donc bien celle
+        // persistée — pas besoin de recharger depuis la base.
         ArticleVariante::query()->updateOrCreate(
             ['article_id' => $this->article->id, 'taille_id' => $tailleId, 'couleur_id' => $couleurId],
             ['disponible' => $disponible]
@@ -98,11 +128,19 @@ class MatriceDisponibiliteArticle extends Component
 
     public function toggleCase(?int $tailleId, ?int $couleurId): void
     {
+        if ($this->bloqueSiStockGere()) {
+            return;
+        }
+
         $this->basculer($tailleId, $couleurId, ! $this->estCoche($tailleId, $couleurId));
     }
 
     public function cocherLigne(?int $couleurId): void
     {
+        if ($this->bloqueSiStockGere()) {
+            return;
+        }
+
         DB::transaction(function () use ($couleurId) {
             foreach ($this->tailles as $taille) {
                 $this->basculer($taille?->id, $couleurId, true);
@@ -112,6 +150,10 @@ class MatriceDisponibiliteArticle extends Component
 
     public function decocherLigne(?int $couleurId): void
     {
+        if ($this->bloqueSiStockGere()) {
+            return;
+        }
+
         DB::transaction(function () use ($couleurId) {
             foreach ($this->tailles as $taille) {
                 $this->basculer($taille?->id, $couleurId, false);
@@ -121,6 +163,10 @@ class MatriceDisponibiliteArticle extends Component
 
     public function cocherColonne(?int $tailleId): void
     {
+        if ($this->bloqueSiStockGere()) {
+            return;
+        }
+
         DB::transaction(function () use ($tailleId) {
             foreach ($this->couleurs as $couleur) {
                 $this->basculer($tailleId, $couleur?->id, true);
@@ -130,6 +176,10 @@ class MatriceDisponibiliteArticle extends Component
 
     public function decocherColonne(?int $tailleId): void
     {
+        if ($this->bloqueSiStockGere()) {
+            return;
+        }
+
         DB::transaction(function () use ($tailleId) {
             foreach ($this->couleurs as $couleur) {
                 $this->basculer($tailleId, $couleur?->id, false);
@@ -139,6 +189,10 @@ class MatriceDisponibiliteArticle extends Component
 
     public function toutCocher(): void
     {
+        if ($this->bloqueSiStockGere()) {
+            return;
+        }
+
         DB::transaction(function () {
             foreach ($this->tailles as $taille) {
                 foreach ($this->couleurs as $couleur) {
@@ -150,6 +204,10 @@ class MatriceDisponibiliteArticle extends Component
 
     public function toutDecocher(): void
     {
+        if ($this->bloqueSiStockGere()) {
+            return;
+        }
+
         DB::transaction(function () {
             foreach ($this->tailles as $taille) {
                 foreach ($this->couleurs as $couleur) {

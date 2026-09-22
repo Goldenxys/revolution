@@ -27,11 +27,12 @@ use Illuminate\Support\Str;
  * - Trois noms tronqués dans le relevé WhatsApp (lignes 30, 33, 37)
  *   complétés avec la gérante.
  *
- * Chaque article est créé avec sa grille de disponibilité entièrement
- * cochée (toutes tailles/couleurs gérées par son type) : c'est un point de
- * départ pratique — la gérante décoche ensuite ce qui n'est pas réellement
- * en stock, plutôt que de partir d'un catalogue invisible faute de
- * variante disponible.
+ * Depuis la restructuration stock/disponibilité, `disponible` est dérivé du
+ * stock pour toute collection qui le gère (Article::genererVariantesInitiales(),
+ * déclenché automatiquement à la création de chaque article) : ces articles
+ * démarrent donc sans aucune variante disponible, jusqu'à ce que la gérante
+ * enregistre un vrai stock dans « Mon stock ». Seule My verse (fabriquée à
+ * la demande, stock non géré) garde ici sa grille cochée manuellement.
  */
 class CatalogueInitialSeeder extends Seeder
 {
@@ -110,7 +111,12 @@ class CatalogueInitialSeeder extends Seeder
                 ]
             );
 
-            $this->cocherToutesLesVariantes($article, $type, $tailles, $couleurs);
+            // Stock géré : Article::genererVariantesInitiales() a déjà créé
+            // toute la grille à la création (disponible en attente de
+            // stock réel). Seule My verse a encore besoin d'être cochée ici.
+            if (! $article->gere_stock) {
+                $this->cocherToutesLesVariantes($article, $type, $tailles, $couleurs);
+            }
         }
     }
 

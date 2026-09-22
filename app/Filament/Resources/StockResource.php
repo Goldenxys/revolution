@@ -5,17 +5,19 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\StockResource\Pages;
 use App\Models\Article;
 use App\Models\ArticleVariante;
+use App\Models\CollectionCatalogue;
 use App\Models\Couleur;
 use App\Models\Taille;
+use App\Models\TypeArticle;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\TextInputColumn;
-use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -24,10 +26,12 @@ use Illuminate\Database\Eloquent\Builder;
 /**
  * « Mon stock » (V2 §8.2, restructuré) — conçu pour le téléphone, consulté
  * debout dans un stand. Une ligne par variante, recherche/filtrage par
- * article + taille + couleur, modification du stock en ligne, entrée de
- * marchandise en trois clics. Le stock n'est plus qu'un outil de pilotage
- * sur cet écran : c'est le compositeur de commande (ComposerDemande) qui
- * bloque réellement la vente d'une variante en rupture.
+ * article + taille + couleur + type + collection, modification du stock en
+ * ligne, entrée de marchandise en trois clics. « En vente » n'est plus une
+ * case à cocher ici : elle est dérivée du stock à chaque sauvegarde
+ * (ArticleVariante::booted()) — c'est le compositeur de commande
+ * (ComposerDemande) qui bloque réellement la vente d'une variante en
+ * rupture.
  */
 class StockResource extends Resource
 {
@@ -88,22 +92,26 @@ class StockResource extends Resource
                 TextColumn::make('etat')
                     ->label('État')
                     ->badge()
+                    // `disponible` est désormais un pur miroir du stock
+                    // (ArticleVariante::booted()) : plus la peine de la
+                    // tester séparément, le stock suffit à tout distinguer.
                     ->state(fn (ArticleVariante $v) => match (true) {
-                        ! $v->disponible => 'indisponible',
                         $v->stock === null => 'non suivi',
                         $v->stock <= 0 => 'rupture',
                         $v->stock <= $v->seuil_alerte => 'stock faible',
                         default => 'ok',
                     })
                     ->color(fn (string $state) => match ($state) {
-                        'rupture', 'indisponible' => 'danger',
+                        'rupture' => 'danger',
                         'stock faible' => 'warning',
                         'non suivi' => 'gray',
                         default => 'success',
                     }),
 
-                ToggleColumn::make('disponible')
-                    ->label('En vente'),
+                IconColumn::make('disponible')
+                    ->label('En vente')
+                    ->boolean()
+                    ->tooltip(fn (ArticleVariante $v) => $v->disponible ? 'En stock, en vente' : 'Pas de stock enregistré — enregistrez-en pour la remettre en vente'),
             ])
             ->filters([
                 Filter::make('etat')
@@ -136,6 +144,22 @@ class StockResource extends Resource
                 SelectFilter::make('couleur_id')
                     ->label('Couleur')
                     ->options(fn () => Couleur::query()->actives()->orderBy('ordre')->pluck('nom', 'id')),
+
+                SelectFilter::make('type_article_id')
+                    ->label('Type d\'article')
+                    ->options(fn () => TypeArticle::query()->actifs()->orderBy('ordre')->pluck('nom', 'id'))
+                    ->query(fn (Builder $query, array $data) => $query->when(
+                        $data['value'] ?? null,
+                        fn (Builder $q, $value) => $q->whereHas('article', fn (Builder $qa) => $qa->where('type_article_id', $value)),
+                    )),
+
+                SelectFilter::make('collection_id')
+                    ->label('Collection')
+                    ->options(fn () => CollectionCatalogue::query()->actives()->orderBy('ordre')->pluck('nom', 'id'))
+                    ->query(fn (Builder $query, array $data) => $query->when(
+                        $data['value'] ?? null,
+                        fn (Builder $q, $value) => $q->whereHas('article', fn (Builder $qa) => $qa->where('collection_id', $value)),
+                    )),
             ])
             ->bulkActions([
                 Tables\Actions\BulkAction::make('reapprovisionner')
@@ -150,19 +174,6 @@ class StockResource extends Resource
                         }
                         Notification::make()->title('Stock ajouté sur '.$records->count().' variante(s).')->success()->send();
                     })
-                    ->deselectRecordsAfterCompletion(),
-
-                Tables\Actions\BulkAction::make('mettre_en_vente')
-                    ->label('Mettre en vente')
-                    ->icon('heroicon-o-check')
-                    ->action(fn ($records) => $records->each->update(['disponible' => true]))
-                    ->deselectRecordsAfterCompletion(),
-
-                Tables\Actions\BulkAction::make('retirer_de_la_vente')
-                    ->label('Retirer de la vente')
-                    ->icon('heroicon-o-x-mark')
-                    ->color('danger')
-                    ->action(fn ($records) => $records->each->update(['disponible' => false]))
                     ->deselectRecordsAfterCompletion(),
             ])
             ->headerActions([
@@ -200,10 +211,10 @@ class StockResource extends Resource
                     ->action(function (array $data) {
                         $variantes = ArticleVariante::query()->whereIn('id', $data['variantes'])->get();
                         foreach ($variantes as $v) {
-                            $v->update([
-                                'stock' => (int) ($v->stock ?? 0) + (int) $data['quantite'],
-                                'disponible' => true,
-                            ]);
+                            // `disponible` n'est plus renseigné ici : la
+                            // mise à jour du stock la dérive automatiquement
+                            // (ArticleVariante::booted()).
+                            $v->update(['stock' => (int) ($v->stock ?? 0) + (int) $data['quantite']]);
                         }
                         Notification::make()->title('Entrée enregistrée sur '.$variantes->count().' variante(s).')->success()->send();
                     }),

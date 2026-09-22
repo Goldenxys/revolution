@@ -49,6 +49,7 @@ class ArticleResourceTest extends TestCase
             'taille_id' => $taille->id,
             'couleur_id' => $couleur->id,
             'disponible' => true,
+            'stock' => 5, // sans quoi disponible se recalcule à false (stock géré par défaut)
         ]);
 
         $this->actingAs($gerante)->get($this->chemin('/articles'))
@@ -102,11 +103,15 @@ class ArticleResourceTest extends TestCase
 
         foreach ($tailles as $i => $taille) {
             foreach ($couleurs as $j => $couleur) {
+                // disponible se recalcule depuis le stock (collection au
+                // stock géré par défaut) : 8 en stock sur 12, le reste à 0.
+                $enStock = ($i + $j) % 3 !== 0;
+
                 ArticleVariante::create([
                     'article_id' => $article->id,
                     'taille_id' => $taille->id,
                     'couleur_id' => $couleur->id,
-                    'disponible' => ($i + $j) % 3 !== 0, // 8 disponibles sur 12
+                    'stock' => $enStock ? 5 : 0,
                 ]);
             }
         }

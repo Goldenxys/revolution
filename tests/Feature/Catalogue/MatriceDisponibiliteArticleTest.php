@@ -14,13 +14,22 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
+/**
+ * Depuis la restructuration stock/disponibilité, cette grille ne pilote
+ * plus `disponible` à la main que pour les collections fabriquées à la
+ * demande (`gere_stock = false`, ex. My verse) — voir tests
+ * *_sur_demande_*. Pour une collection au stock géré (le défaut), la
+ * grille est un simple affichage : toute tentative de bascule est bloquée
+ * (voir tests *_stock_gere_*), `disponible` étant dérivé du stock dans
+ * « Mon stock » (ArticleVariante::booted()).
+ */
 class MatriceDisponibiliteArticleTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function creerArticle(bool $gereTailles = true, bool $gereCouleurs = true): Article
+    private function creerArticle(bool $gereTailles = true, bool $gereCouleurs = true, bool $gereStock = false): Article
     {
-        $collection = CollectionCatalogue::create(['nom' => 'Test', 'slug' => 'test-'.uniqid()]);
+        $collection = CollectionCatalogue::create(['nom' => 'Test', 'slug' => 'test-'.uniqid(), 'gere_stock' => $gereStock]);
         $type = TypeArticle::create([
             'nom' => 'Type test',
             'slug' => 'type-test-'.uniqid(),
@@ -146,5 +155,63 @@ class MatriceDisponibiliteArticleTest extends TestCase
             'couleur_id' => $couleur->id,
             'disponible' => true,
         ]);
+    }
+
+    /**
+     * Une collection au stock géré (le défaut) : la grille n'est plus
+     * qu'un affichage, `disponible` suit le stock — la gérante ne peut
+     * plus la cocher à la main ici.
+     */
+    public function test_toggle_case_est_sans_effet_pour_une_collection_au_stock_gere(): void
+    {
+        $gerante = User::factory()->create();
+        $article = $this->creerArticle(gereStock: true);
+        $taille = Taille::create(['libelle' => 'M']);
+        $couleur = Couleur::create(['nom' => 'Blanc']);
+
+        Livewire::actingAs($gerante)
+            ->test(MatriceDisponibiliteArticle::class, ['article' => $article])
+            ->assertSet('gereStock', true)
+            ->call('toggleCase', $taille->id, $couleur->id);
+
+        $this->assertDatabaseMissing('article_variantes', [
+            'article_id' => $article->id,
+            'taille_id' => $taille->id,
+            'couleur_id' => $couleur->id,
+            'disponible' => true,
+        ]);
+    }
+
+    public function test_tout_cocher_est_sans_effet_pour_une_collection_au_stock_gere(): void
+    {
+        $gerante = User::factory()->create();
+        $article = $this->creerArticle(gereStock: true);
+        Taille::create(['libelle' => 'M']);
+        Couleur::create(['nom' => 'Blanc']);
+
+        Livewire::actingAs($gerante)
+            ->test(MatriceDisponibiliteArticle::class, ['article' => $article])
+            ->call('toutCocher');
+
+        $this->assertSame(0, ArticleVariante::where('article_id', $article->id)->where('disponible', true)->count());
+    }
+
+    /**
+     * Une variante déjà en stock (donc disponible=true, dérivé) reste
+     * affichée cochée par la grille — c'est un affichage, pas une remise à
+     * zéro de l'état réel.
+     */
+    public function test_une_variante_en_stock_apparait_cochee_dans_la_grille_au_stock_gere(): void
+    {
+        $gerante = User::factory()->create();
+        $article = $this->creerArticle(gereStock: true);
+        $taille = Taille::create(['libelle' => 'M']);
+        $couleur = Couleur::create(['nom' => 'Blanc']);
+        ArticleVariante::create(['article_id' => $article->id, 'taille_id' => $taille->id, 'couleur_id' => $couleur->id, 'stock' => 5]);
+
+        Livewire::actingAs($gerante)
+            ->test(MatriceDisponibiliteArticle::class, ['article' => $article])
+            ->assertSet('gereStock', true)
+            ->assertSeeHtml('En stock');
     }
 }

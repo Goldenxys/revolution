@@ -40,6 +40,7 @@ class CommandeCatalogueTest extends TestCase
             'taille_id' => $taille?->id,
             'couleur_id' => $couleur?->id,
             'disponible' => true,
+            'stock' => 10, // sans quoi disponible se recalcule à false (stock géré par défaut)
         ]);
 
         return compact('article', 'taille', 'couleur', 'variante');
@@ -65,7 +66,11 @@ class CommandeCatalogueTest extends TestCase
      * Avec le vrai catalogue chargé (39 articles + tote bag, dont des noms
      * avec apostrophes comme « God's Daughter ») : le JSON injecté dans
      * x-data via @js() doit s'échapper correctement en HTML, et la
-     * présélection par slug (?collection=) doit fonctionner.
+     * présélection par slug (?collection=) doit fonctionner. Depuis la
+     * restructuration stock/disponibilité, un article fraîchement semé
+     * d'une collection au stock géré démarre épuisé (aucun stock encore
+     * enregistré) — seule My verse (fabriquée à la demande) reste visible
+     * publiquement dès le seed, d'où les 5 attendus plutôt que 40.
      */
     public function test_la_page_se_charge_avec_le_catalogue_reel_et_gere_les_apostrophes(): void
     {
@@ -77,7 +82,7 @@ class CommandeCatalogueTest extends TestCase
 
         $this->get(route('commande.catalogue.creer'))->assertOk();
         $this->get(route('commande.catalogue.creer', ['collection' => 'my_verse']))->assertOk();
-        $this->get(route('commande.catalogue.json'))->assertOk()->assertJsonCount(40, 'articles');
+        $this->get(route('commande.catalogue.json'))->assertOk()->assertJsonCount(5, 'articles');
     }
 
     public function test_creation_reussie_avec_article_taille_et_couleur_disponibles(): void
@@ -178,8 +183,9 @@ class CommandeCatalogueTest extends TestCase
         ['article' => $article, 'taille' => $taille, 'couleur' => $couleur, 'variante' => $variante] = $this->creerArticleDisponible();
 
         // La cliente avait chargé la page quand c'était disponible, mais la
-        // variante s'épuise juste avant qu'elle ne valide.
-        $variante->update(['disponible' => false]);
+        // variante s'épuise juste avant qu'elle ne valide — `disponible` se
+        // recalcule automatiquement dès que le stock retombe à zéro.
+        $variante->update(['stock' => 0]);
 
         $reponse = $this->from(route('commande.catalogue.creer'))->post(route('commande.catalogue.store'), $this->donneesBase([
             'article_id' => $article->id,

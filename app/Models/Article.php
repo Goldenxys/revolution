@@ -45,6 +45,44 @@ class Article extends Model
         return $this->hasMany(ArticleVariante::class);
     }
 
+    /**
+     * Dès qu'un article rejoint une collection au stock géré, toutes ses
+     * combinaisons taille×couleur existent immédiatement dans « Mon stock »
+     * — plus besoin de les créer au clic dans la grille « Disponibilité »,
+     * qui n'a plus vocation qu'à afficher l'état (dérivé du stock, voir
+     * ArticleVariante::booted()). Les collections fabriquées à la demande
+     * (My verse) gardent leur fonctionnement manuel d'origine.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (Article $article) {
+            if ($article->gere_stock) {
+                $article->genererVariantesInitiales();
+            }
+        });
+    }
+
+    /**
+     * Crée toutes les variantes taille×couleur possibles pour cet article,
+     * sans stock (donc non disponibles tant que rien n'est enregistré).
+     * Idempotente (firstOrCreate) : ne duplique jamais une combinaison déjà
+     * présente.
+     */
+    public function genererVariantesInitiales(): void
+    {
+        $tailles = $this->gere_tailles ? Taille::query()->actives()->pluck('id') : collect([null]);
+        $couleurs = $this->gere_couleurs ? Couleur::query()->actives()->pluck('id') : collect([null]);
+
+        foreach ($tailles as $tailleId) {
+            foreach ($couleurs as $couleurId) {
+                $this->variantes()->firstOrCreate([
+                    'taille_id' => $tailleId,
+                    'couleur_id' => $couleurId,
+                ]);
+            }
+        }
+    }
+
     public function getGereTaillesAttribute(): bool
     {
         return (bool) $this->typeArticle?->gere_tailles;

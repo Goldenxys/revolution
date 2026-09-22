@@ -22,6 +22,7 @@ class CollectionSeeder extends Seeder
                 'nom' => 'My verse by RÉVOLUTION',
                 'description' => 'Une pièce personnalisée avec le verset choisi par la cliente.',
                 'verset_requis' => true,
+                'gere_stock' => false,
                 'ordre' => 0,
             ],
             [
@@ -72,6 +73,7 @@ class CollectionSeeder extends Seeder
                     'nom' => $collection['nom'],
                     'description' => $collection['description'],
                     'verset_requis' => $collection['verset_requis'],
+                    'gere_stock' => $collection['gere_stock'] ?? true,
                     'ordre' => $collection['ordre'],
                     'active' => $collection['active'] ?? true,
                 ]

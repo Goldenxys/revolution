@@ -41,6 +41,25 @@ class ArticleVariante extends Model
     }
 
     /**
+     * Pour une collection au stock géré, `disponible` n'est plus une case à
+     * cocher : elle est entièrement dérivée de la présence de stock, à
+     * chaque sauvegarde, quel que soit le point d'entrée (édition en ligne
+     * dans « Mon stock », entrée de stock, tinker...). La gérante ne peut
+     * plus la forcer — seul le stock enregistré décide. Les collections
+     * fabriquées à la demande (ex. My verse, `gere_stock = false`) gardent
+     * le contrôle manuel d'origine : il n'y a pas de stock dont dériver quoi
+     * que ce soit.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (ArticleVariante $variante) {
+            if ($variante->article?->gere_stock !== false) {
+                $variante->disponible = $variante->stock !== null && $variante->stock > 0;
+            }
+        });
+    }
+
+    /**
      * Centralise la vérification d'unicité applicative (article, taille,
      * couleur) : un index unique classique ne protège pas des doublons ici
      * car MySQL/Postgres traitent deux NULL comme différents, or taille_id
@@ -109,13 +128,15 @@ class ArticleVariante extends Model
 
     /**
      * Vrai si la variante peut être vendue maintenant : en vente ET (stock
-     * non suivi — NULL, toujours considéré disponible — OU stock > 0 — OU
-     * la collection ne gère pas le stock, ex. My verse fabriqué à la
-     * demande : une rupture n'a alors aucun sens, même si un stock
-     * numérique traîne encore sur la variante). Distinct de `disponible`
-     * seul : sert à bloquer la sélection d'une variante en rupture dans le
-     * compositeur de commande, là où `disponible` gate déjà la visibilité
-     * du catalogue public.
+     * suivi > 0, OU stock non suivi — NULL, seulement pertinent pour une
+     * collection fabriquée à la demande où `disponible` reste manuel — OU
+     * la collection ne gère pas le stock, ex. My verse : une rupture n'a
+     * alors aucun sens). Pour une collection au stock géré, `disponible`
+     * est déjà dérivé du stock à la sauvegarde (voir booted() ci-dessus),
+     * donc en pratique cette méthode s'y réduit à `disponible`. Distinct de
+     * `disponible` seul : sert à bloquer la sélection d'une variante en
+     * rupture dans le compositeur de commande, là où `disponible` gate déjà
+     * la visibilité du catalogue public.
      */
     public function estAchetable(): bool
     {

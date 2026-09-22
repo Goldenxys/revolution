@@ -253,6 +253,7 @@ class ArticleResource extends Resource
                         ->label('Rendre indisponible dans une taille')
                         ->icon('heroicon-o-x-circle')
                         ->color('danger')
+                        ->modalDescription('Sans effet sur les articles d\'une collection au stock géré : leur disponibilité suit automatiquement leur stock, elle ne se force plus à la main. Ne s\'applique qu\'aux articles fabriqués à la demande (ex. My verse).')
                         ->form([
                             Select::make('taille_id')
                                 ->label('Taille')
@@ -260,10 +261,14 @@ class ArticleResource extends Resource
                                 ->required(),
                         ])
                         ->action(function (SupportCollection $records, array $data) {
+                            // Mise à jour modèle par modèle (pas de mass-update
+                            // query builder) pour que le garde-fou de
+                            // ArticleVariante::booted() s'applique : sans effet
+                            // sur une variante dont la collection gère le stock.
                             ArticleVariante::query()
                                 ->whereIn('article_id', $records->pluck('id'))
                                 ->where('taille_id', $data['taille_id'])
-                                ->update(['disponible' => false]);
+                                ->each(fn (ArticleVariante $v) => $v->update(['disponible' => false]));
                         })
                         ->deselectRecordsAfterCompletion(),
 
@@ -271,6 +276,7 @@ class ArticleResource extends Resource
                         ->label('Rendre indisponible dans une couleur')
                         ->icon('heroicon-o-x-circle')
                         ->color('danger')
+                        ->modalDescription('Sans effet sur les articles d\'une collection au stock géré : leur disponibilité suit automatiquement leur stock, elle ne se force plus à la main. Ne s\'applique qu\'aux articles fabriqués à la demande (ex. My verse).')
                         ->form([
                             Select::make('couleur_id')
                                 ->label('Couleur')
@@ -281,7 +287,7 @@ class ArticleResource extends Resource
                             ArticleVariante::query()
                                 ->whereIn('article_id', $records->pluck('id'))
                                 ->where('couleur_id', $data['couleur_id'])
-                                ->update(['disponible' => false]);
+                                ->each(fn (ArticleVariante $v) => $v->update(['disponible' => false]));
                         })
                         ->deselectRecordsAfterCompletion(),
 

@@ -58,7 +58,12 @@ class DisponibiliteAchatTest extends TestCase
         $this->assertFalse($variante->estAchetable());
     }
 
-    public function test_une_variante_indisponible_nest_pas_achetable_meme_avec_du_stock(): void
+    /**
+     * Collection au stock géré : `disponible` ne se force plus à la main,
+     * il se dérive du stock à chaque sauvegarde — impossible de la marquer
+     * indisponible tant qu'il reste du stock (ArticleVariante::booted()).
+     */
+    public function test_disponible_ne_peut_plus_etre_force_a_faux_tant_quil_reste_du_stock(): void
     {
         $variante = ArticleVariante::create([
             'article_id' => $this->article()->id,
@@ -68,10 +73,17 @@ class DisponibiliteAchatTest extends TestCase
             'stock' => 10,
         ]);
 
-        $this->assertFalse($variante->estAchetable());
+        $this->assertTrue($variante->disponible);
+        $this->assertTrue($variante->estAchetable());
     }
 
-    public function test_une_variante_au_stock_non_suivi_reste_achetable(): void
+    /**
+     * Collection au stock géré : sans stock enregistré (jamais renseigné,
+     * NULL), la variante n'est pas achetable — « non suivi = toujours
+     * disponible » ne s'applique plus qu'aux collections fabriquées à la
+     * demande (gere_stock = false).
+     */
+    public function test_une_variante_sans_stock_enregistre_nest_pas_achetable(): void
     {
         $variante = ArticleVariante::create([
             'article_id' => $this->article()->id,
@@ -81,7 +93,8 @@ class DisponibiliteAchatTest extends TestCase
             'stock' => null,
         ]);
 
-        $this->assertTrue($variante->estAchetable());
+        $this->assertFalse($variante->disponible);
+        $this->assertFalse($variante->estAchetable());
     }
 
     public function test_une_variante_avec_du_stock_est_achetable(): void
@@ -114,24 +127,24 @@ class DisponibiliteAchatTest extends TestCase
         $this->assertSame(['M'], $tailles);
     }
 
-    public function test_couleursAchetables_exclut_la_couleur_indisponible_pour_une_taille_donnee(): void
+    public function test_couleursAchetables_exclut_la_couleur_en_rupture_pour_une_taille_donnee(): void
     {
         $article = $this->article();
         $xl = Taille::create(['libelle' => 'XL']);
         $noir = Couleur::create(['nom' => 'Noir', 'ordre' => 1]);
         $blanc = Couleur::create(['nom' => 'Blanc', 'ordre' => 2]);
 
-        // XL noir : marquée indisponible — ne doit pas apparaître.
-        ArticleVariante::create(['article_id' => $article->id, 'taille_id' => $xl->id, 'couleur_id' => $noir->id, 'disponible' => false, 'stock' => 10]);
-        // XL blanc : en vente et en stock — doit apparaître.
-        ArticleVariante::create(['article_id' => $article->id, 'taille_id' => $xl->id, 'couleur_id' => $blanc->id, 'disponible' => true, 'stock' => 2]);
+        // XL noir : en rupture — ne doit pas apparaître.
+        ArticleVariante::create(['article_id' => $article->id, 'taille_id' => $xl->id, 'couleur_id' => $noir->id, 'stock' => 0]);
+        // XL blanc : en stock — doit apparaître.
+        ArticleVariante::create(['article_id' => $article->id, 'taille_id' => $xl->id, 'couleur_id' => $blanc->id, 'stock' => 2]);
 
         $couleurs = $article->couleursAchetables($xl->id)->pluck('nom')->all();
 
         $this->assertSame(['Blanc'], $couleurs);
     }
 
-    public function test_taillesAchetables_inclut_une_taille_au_stock_non_suivi(): void
+    public function test_taillesAchetables_exclut_une_taille_sans_stock_enregistre(): void
     {
         $article = $this->article();
         $couleur = Couleur::create(['nom' => 'Noir']);
@@ -139,7 +152,7 @@ class DisponibiliteAchatTest extends TestCase
 
         ArticleVariante::create(['article_id' => $article->id, 'taille_id' => $xl->id, 'couleur_id' => $couleur->id, 'disponible' => true, 'stock' => null]);
 
-        $this->assertSame(['XL'], $article->taillesAchetables($couleur->id)->pluck('libelle')->all());
+        $this->assertSame([], $article->taillesAchetables($couleur->id)->pluck('libelle')->all());
     }
 
     public function test_une_variante_en_rupture_dune_collection_sur_demande_reste_achetable(): void
@@ -186,5 +199,29 @@ class DisponibiliteAchatTest extends TestCase
         $tailles = $article->taillesAchetables($couleur->id)->pluck('libelle')->all();
 
         $this->assertSame(['XL', 'M'], $tailles);
+    }
+
+    public function test_creer_un_article_au_stock_gere_genere_toutes_les_variantes_non_disponibles(): void
+    {
+        Taille::create(['libelle' => 'M']);
+        Taille::create(['libelle' => 'L']);
+        Couleur::create(['nom' => 'Blanc']);
+        Couleur::create(['nom' => 'Noir']);
+        Couleur::create(['nom' => 'Kaki', 'active' => false]); // inactive : ne doit pas être générée
+
+        $article = $this->article();
+
+        $this->assertSame(4, $article->variantes()->count()); // 2 tailles × 2 couleurs actives
+        $this->assertSame(0, $article->variantes()->where('disponible', true)->count());
+    }
+
+    public function test_creer_un_article_sur_demande_ne_genere_aucune_variante(): void
+    {
+        Taille::create(['libelle' => 'M']);
+        Couleur::create(['nom' => 'Blanc']);
+
+        $article = $this->articleSurDemande();
+
+        $this->assertSame(0, $article->variantes()->count());
     }
 }
