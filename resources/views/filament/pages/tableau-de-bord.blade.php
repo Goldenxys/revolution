@@ -8,7 +8,7 @@
 
     $cartes = [
         ['cle' => 'ca', 'label' => "Chiffre d'affaires du jour", 'icone' => 'heroicon-o-banknotes', 'francs' => true],
-        ['cle' => 'ventes', 'label' => 'Ventes validées', 'icone' => 'heroicon-o-check-badge', 'francs' => false],
+        ['cle' => 'ventes', 'label' => 'Ventes livrées', 'icone' => 'heroicon-o-check-badge', 'francs' => false],
         ['cle' => 'nouveaux_clients', 'label' => 'Nouveaux clients', 'icone' => 'heroicon-o-user-plus', 'francs' => false],
     ];
 

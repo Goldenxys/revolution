@@ -4,10 +4,8 @@ namespace App\Listeners;
 
 use App\Events\CommandeValidee;
 use App\Mail\RecuCommande;
-use App\Mail\VenteRealisee;
 use App\Models\Commande;
 use App\Models\CommandeJournal;
-use App\Models\Parametre;
 use App\Support\RecuPdf;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
@@ -16,9 +14,11 @@ use Illuminate\Support\Facades\Mail;
 
 /**
  * Auditeur de CommandeValidee (§5.3, dernière ligne : « après le commit, en
- * file d'attente ») : génère le reçu PDF, envoie le reçu à la cliente et
- * l'e-mail « nouvelle vente réalisée » à la gérante avec le cumul du jour.
- * Une vente ne doit jamais dépendre d'un SMTP lent — d'où la file.
+ * file d'attente ») : génère le reçu PDF et l'envoie à la cliente. Part dès
+ * la validation — la gérante peut transmettre le reçu avant même que le
+ * colis soit livré. La notification « vente réalisée » à la gérante, elle,
+ * attend la livraison confirmée (App\Listeners\NotifierVenteLivree). Une
+ * vente ne doit jamais dépendre d'un SMTP lent — d'où la file.
  */
 class EnvoyerRecuEtNotifierVente implements ShouldQueue
 {
@@ -41,24 +41,15 @@ class EnvoyerRecuEtNotifierVente implements ShouldQueue
 
         // Garde-fou anti-doublon : si CommandeValidee était (re)livré une
         // deuxième fois pour la même commande — retry de file, événement
-        // rejoué — aucun des deux e-mails ne repart une seconde fois. Le
-        // bouton « Renvoyer le reçu » (ViewCommande) reste, lui, volontaire
-        // et non concerné : il consigne un type distinct ('recu_renvoi').
+        // rejoué — l'e-mail ne repart pas une seconde fois. Le bouton
+        // « Renvoyer le reçu » (ViewCommande) reste, lui, volontaire et non
+        // concerné : il consigne un type distinct ('recu_renvoi').
         if (filled($commande->client?->email) && ! $this->dejaEnvoye($commande, 'recu')) {
             try {
                 Mail::to($commande->client->email)->queue(new RecuCommande($commande));
                 CommandeJournal::consigner($commande, 'email_envoye', ['destinataire' => 'cliente', 'type' => 'recu']);
             } catch (\Throwable $e) {
                 Log::error('Reçu cliente non envoyé', ['commande' => $commande->reference, 'erreur' => $e->getMessage()]);
-            }
-        }
-
-        if (! $this->dejaEnvoye($commande, 'vente_realisee')) {
-            try {
-                Mail::to(Parametre::emailReception())->queue(new VenteRealisee($commande, $this->caDuJour($commande)));
-                CommandeJournal::consigner($commande, 'email_envoye', ['destinataire' => 'gerante', 'type' => 'vente_realisee']);
-            } catch (\Throwable $e) {
-                Log::error('E-mail « vente réalisée » non envoyé', ['commande' => $commande->reference, 'erreur' => $e->getMessage()]);
             }
         }
     }
@@ -70,17 +61,5 @@ class EnvoyerRecuEtNotifierVente implements ShouldQueue
             ->where('evenement', 'email_envoye')
             ->where('details->type', $type)
             ->exists();
-    }
-
-    /**
-     * Chiffre d'affaires cumulé du jour de validation — hors livraison,
-     * commandes annulées exclues (scope validees()).
-     */
-    private function caDuJour(Commande $commande): int
-    {
-        return (int) Commande::query()
-            ->validees()
-            ->whereDate('validee_at', $commande->validee_at->toDateString())
-            ->sum('total_articles');
     }
 }

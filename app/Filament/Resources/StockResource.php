@@ -5,6 +5,8 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\StockResource\Pages;
 use App\Models\Article;
 use App\Models\ArticleVariante;
+use App\Models\Couleur;
+use App\Models\Taille;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Get;
@@ -15,15 +17,17 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\TextInputColumn;
 use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * « Mon stock » (V2 §8.2) — conçu pour le téléphone, consulté debout dans
- * un stand. Une ligne par variante, modification du stock en ligne, trois
- * gros filtres, entrée de marchandise en trois clics. Le stock avertit,
- * il n'interdit jamais une vente : c'est un outil de pilotage, pas un
- * verrou.
+ * « Mon stock » (V2 §8.2, restructuré) — conçu pour le téléphone, consulté
+ * debout dans un stand. Une ligne par variante, recherche/filtrage par
+ * article + taille + couleur, modification du stock en ligne, entrée de
+ * marchandise en trois clics. Le stock n'est plus qu'un outil de pilotage
+ * sur cet écran : c'est le compositeur de commande (ComposerDemande) qui
+ * bloque réellement la vente d'une variante en rupture.
  */
 class StockResource extends Resource
 {
@@ -120,6 +124,14 @@ class StockResource extends Resource
                         'rupture' => 'Rupture',
                         default => null,
                     }),
+
+                SelectFilter::make('taille_id')
+                    ->label('Taille')
+                    ->options(fn () => Taille::query()->actives()->orderBy('ordre')->pluck('libelle', 'id')),
+
+                SelectFilter::make('couleur_id')
+                    ->label('Couleur')
+                    ->options(fn () => Couleur::query()->actives()->orderBy('ordre')->pluck('nom', 'id')),
             ])
             ->bulkActions([
                 Tables\Actions\BulkAction::make('reapprovisionner')

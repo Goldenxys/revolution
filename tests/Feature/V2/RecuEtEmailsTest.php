@@ -40,7 +40,18 @@ class RecuEtEmailsTest extends TestCase
         return [$client, $commande];
     }
 
-    public function test_la_validation_genere_le_pdf_et_envoie_les_deux_emails(): void
+    /**
+     * Livre une commande validée — passe par « en_livraison » comme le
+     * fait AvancerStatutAction, avant confirmerLivraison() qui déclenche
+     * CommandeLivree (et donc le mail « vente réalisée » à la gérante).
+     */
+    private function livrer(Commande $commande, User $gerante): void
+    {
+        $commande->update(['statut' => 'en_livraison']);
+        $commande->confirmerLivraison($gerante);
+    }
+
+    public function test_la_validation_genere_le_pdf_et_le_recu_puis_la_livraison_notifie_la_gerante(): void
     {
         Storage::fake('local');
         Mail::fake();
@@ -51,9 +62,15 @@ class RecuEtEmailsTest extends TestCase
 
         Storage::disk('local')->assertExists(RecuPdf::cheminRelatif($commande));
         Mail::assertQueued(RecuCommande::class, fn ($m) => $m->hasTo('cliente@example.com'));
-        Mail::assertQueued(VenteRealisee::class);
+        // La notification « vente réalisée » à la gérante attend la
+        // livraison confirmée — pas encore envoyée à la validation.
+        Mail::assertNotQueued(VenteRealisee::class);
 
         $this->assertDatabaseHas('commande_journal', ['commande_id' => $commande->id, 'evenement' => 'pdf_genere']);
+
+        $this->livrer($commande, $gerante);
+
+        Mail::assertQueued(VenteRealisee::class);
     }
 
     /**
@@ -93,13 +110,15 @@ class RecuEtEmailsTest extends TestCase
         // Deuxième livraison de l'événement, comme le ferait un retry.
         (new EnvoyerRecuEtNotifierVente)->handle(new CommandeValidee($commande));
 
-        // 1 reçu cliente + 1 « vente réalisée » gérante — jamais 2 + 2.
-        Mail::assertQueuedCount(2);
+        // 1 reçu cliente — jamais 2. Le mail « vente réalisée » gérante ne
+        // dépend pas de cet événement (CommandeValidee) : il attend
+        // CommandeLivree, jamais déclenché ici.
+        Mail::assertQueuedCount(1);
         Mail::assertQueued(RecuCommande::class, 1);
-        Mail::assertQueued(VenteRealisee::class, 1);
+        Mail::assertNotQueued(VenteRealisee::class);
     }
 
-    public function test_sans_email_cliente_seul_le_mail_gerante_part(): void
+    public function test_sans_email_cliente_rien_ne_part_a_la_validation_puis_la_gerante_est_notifiee_a_la_livraison(): void
     {
         Storage::fake('local');
         Mail::fake();
@@ -109,6 +128,12 @@ class RecuEtEmailsTest extends TestCase
         $commande->valider($gerante);
 
         Mail::assertNotQueued(RecuCommande::class);
+        Mail::assertNotQueued(VenteRealisee::class);
+
+        $this->livrer($commande, $gerante);
+
+        // Le mail « vente réalisée » part chez la gérante (Parametre::emailReception()),
+        // indépendamment de l'e-mail de la cliente.
         Mail::assertQueued(VenteRealisee::class);
     }
 

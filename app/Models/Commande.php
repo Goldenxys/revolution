@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\CommandeLivree;
 use App\Events\CommandeValidee;
 use App\Support\Francais;
 use Illuminate\Database\Eloquent\Builder;
@@ -52,6 +53,7 @@ class Commande extends Model
         'total_articles',
         'total_a_payer',
         'validee_at',
+        'livree_at',
         'validee_par',
         'remise_forcee',
         'recu_token',
@@ -71,6 +73,7 @@ class Commande extends Model
         'total_articles' => 'integer',
         'total_a_payer' => 'integer',
         'validee_at' => 'datetime',
+        'livree_at' => 'datetime',
         'remise_forcee' => 'boolean',
     ];
 
@@ -89,9 +92,9 @@ class Commande extends Model
         // mails déjà envoyés, paliers déjà annoncés — reste inchangé), mais
         // on recalcule bien nb_commandes/ca_cumule et les bornes de dates du
         // client depuis ses commandes qui comptent : celles du formulaire
-        // libre (finales dès la soumission) et les demandes V2 validées —
-        // jamais une demande V2 encore `en_attente`, jamais une commande
-        // annulée.
+        // libre (finales dès la soumission) et les demandes V2 réellement
+        // livrées — jamais une demande V2 encore `en_attente` ou seulement
+        // validée, jamais une commande annulée.
         static::deleted(function (Commande $commande) {
             $client = $commande->client()->first();
 
@@ -106,7 +109,7 @@ class Commande extends Model
             $client->statut = $client->nb_commandes > 0 ? 'client' : 'prospect';
 
             $bornes = (clone $comptees)
-                ->selectRaw('MIN(COALESCE(validee_at, created_at)) as premiere, MAX(COALESCE(validee_at, created_at)) as derniere')
+                ->selectRaw('MIN(COALESCE(livree_at, created_at)) as premiere, MAX(COALESCE(livree_at, created_at)) as derniere')
                 ->first();
 
             $client->premiere_commande_at = $bornes?->premiere;
@@ -146,12 +149,13 @@ class Commande extends Model
     }
 
     /**
-     * Le fait comptable (V2 §9) : une commande qui a été validée et n'a pas
-     * été annulée depuis — couvre `validee`, `en_livraison` et `livree`
-     * (la livraison ne déclenche plus rien de comptable, elle ne retire
-     * rien non plus). `validee_at` reste renseigné après une annulation
-     * (trace historique de la validation d'origine) : c'est pourquoi le
-     * statut, pas seulement la date, doit être vérifié ici.
+     * Une commande composée et verrouillée par la gérante (montants figés,
+     * reçu généré) — pas encore forcément comptabilisée : voir
+     * `scopeComptees()`/`livree_at` pour le fait comptable, désormais
+     * déclenché par la livraison et non par cette étape. `validee_at` reste
+     * renseigné après une annulation (trace historique de la validation
+     * d'origine) : c'est pourquoi le statut, pas seulement la date, doit
+     * être vérifié ici. Sert notamment à la génération du reçu (RecuController).
      */
     public function scopeValidees(Builder $query): Builder
     {
@@ -159,16 +163,32 @@ class Commande extends Model
     }
 
     /**
+     * Une commande dont la livraison a été confirmée — c'est ce moment,
+     * pas la validation, qui déclenche le décrément de stock et la mise à
+     * jour du CA/de la fidélité de la cliente (Commande::confirmerLivraison()).
+     */
+    public function scopeLivrees(Builder $query): Builder
+    {
+        return $query->whereNotNull('livree_at')->where('statut', '!=', 'annulee');
+    }
+
+    /**
      * Les commandes d'une cliente qui comptent pour sa fidélité et son
      * chiffre d'affaires cumulé : le formulaire libre est final dès la
-     * soumission (`nouvelle`, `confirmee`, `preparation`, `livree`), une
-     * demande V2 ne compte qu'une fois `validee` (donc `validee`,
-     * `en_livraison`, `livree`). Restent exclues les demandes encore
-     * `en_attente` et toutes les commandes `annulee`.
+     * soumission (`nouvelle`, `confirmee`, `preparation`, `livree` — jamais
+     * de `validee_at`/`livree_at` renseignés pour ce flux), une demande V2 ne
+     * compte qu'une fois réellement **livrée** (`livree_at` renseigné) — la
+     * validation seule ne suffit plus. Restent exclues les demandes encore
+     * `en_attente`, les commandes V2 validées mais pas encore livrées, et
+     * toutes les commandes `annulee`.
      */
     public function scopeComptees(Builder $query): Builder
     {
-        return $query->whereNotIn('statut', ['en_attente', 'annulee']);
+        return $query->where('statut', '!=', 'annulee')
+            ->where(function (Builder $q) {
+                $q->whereNotNull('livree_at')
+                    ->orWhere(fn (Builder $q2) => $q2->whereNull('validee_at')->where('statut', '!=', 'en_attente'));
+            });
     }
 
     /**
@@ -338,10 +358,12 @@ class Commande extends Model
     }
 
     /**
-     * Le moment central de la V2 (§5.3) : compose les lignes réelles en
-     * chiffre d'affaires. Idempotente — un second appel (double-clic,
-     * requête rejouée) ne fait rien, silencieusement, plutôt que de
-     * recompter la fidélité une deuxième fois (critère de réussite #12).
+     * Le moment où la gérante compose et verrouille une commande (V2 §5.3
+     * révisé) : fige les lignes en montants, génère le reçu. Ne touche
+     * volontairement plus ni le stock ni le CA/la fidélité de la cliente —
+     * ce fait comptable est désormais porté par confirmerLivraison(),
+     * déclenché seulement à la livraison confirmée. Idempotente — un second
+     * appel (double-clic, requête rejouée) ne fait rien, silencieusement.
      * Tout réussit ensemble ou échoue ensemble.
      *
      * @param  int|null  $remiseForceePourcentage  Remise saisie à la main par
@@ -349,7 +371,17 @@ class Commande extends Model
      *                                             remise_forcee = true) ;
      *                                             sinon la proposition
      *                                             automatique du palier de
-     *                                             fidélité est utilisée.
+     *                                             fidélité est utilisée, sur
+     *                                             la base du rang que cette
+     *                                             commande occuperait si elle
+     *                                             était la prochaine livrée
+     *                                             de la cliente (peut se
+     *                                             recouper avec une autre
+     *                                             commande validée en
+     *                                             parallèle et pas encore
+     *                                             livrée — cas rare, la
+     *                                             gérante peut toujours
+     *                                             corriger via remise_manuelle).
      *
      * @throws RuntimeException si la commande n'a aucune ligne composée.
      */
@@ -399,7 +431,42 @@ class Commande extends Model
                 'recu_token' => static::genererRecuToken(),
             ]);
 
-            foreach ($lignes as $ligne) {
+            if (blank($client->numero_client)) {
+                $client->numero_client = $client->genererNumeroClient();
+                $client->save();
+            }
+
+            CommandeJournal::consigner($this, 'validee', [
+                'total_articles' => $totalArticles,
+                'total_a_payer' => $totalAPayer,
+                'remise_pourcentage' => $remisePourcentage,
+                'remise_forcee' => $remiseForceePourcentage !== null,
+            ], $utilisateur->id);
+
+            // Reçu PDF + e-mail cliente (§7) : partent dès la validation, la
+            // gérante peut envoyer le reçu avant même que le colis parte.
+            DB::afterCommit(fn () => event(new CommandeValidee($this)));
+        });
+    }
+
+    /**
+     * Le vrai fait comptable : appelé quand la gérante confirme qu'une
+     * commande en livraison a bien été livrée. C'est ici, et seulement ici,
+     * que le stock des variantes vendues est décrémenté et que le CA
+     * cumulé / le compteur de fidélité de la cliente avancent — jamais à la
+     * validation (V2 révisé, cf. plan de restructuration stock/livraison).
+     * Idempotente, symétrique à valider().
+     */
+    public function confirmerLivraison(User $utilisateur): void
+    {
+        if ($this->statut !== 'en_livraison') {
+            return;
+        }
+
+        DB::transaction(function () use ($utilisateur) {
+            $client = $this->client()->lockForUpdate()->first();
+
+            foreach ($this->lignes as $ligne) {
                 $variante = ArticleVariante::query()
                     ->where('article_id', $ligne->article_id)
                     ->where('taille_id', $ligne->taille_id)
@@ -409,8 +476,8 @@ class Commande extends Model
                 $variante?->decrementerStock($ligne->quantite, $this);
             }
 
-            $client->nb_commandes = $numeroCommandeClient;
-            $client->ca_cumule += $totalArticles;
+            $client->nb_commandes += 1;
+            $client->ca_cumule += $this->total_articles;
             $client->derniere_commande_at = now();
 
             if ($client->statut === 'prospect') {
@@ -418,34 +485,27 @@ class Commande extends Model
                 $client->premiere_commande_at = now();
             }
 
-            if (blank($client->numero_client)) {
-                $client->numero_client = $client->genererNumeroClient();
-            }
-
             $client->save();
 
-            CommandeJournal::consigner($this, 'validee', [
-                'total_articles' => $totalArticles,
-                'total_a_payer' => $totalAPayer,
-                'remise_pourcentage' => $remisePourcentage,
-                'remise_forcee' => $remiseForceePourcentage !== null,
+            $this->update(['statut' => 'livree', 'livree_at' => now()]);
+
+            CommandeJournal::consigner($this, 'livree', [
+                'total_articles' => $this->total_articles,
             ], $utilisateur->id);
 
-            // Point d'extension pour la Phase 4 (reçu PDF + e-mails) : un
-            // auditeur s'enregistre sur cet événement pour ne jamais faire
-            // dépendre la vente elle-même d'un envoi SMTP lent (V2 §5.3,
-            // dernière ligne).
-            DB::afterCommit(fn () => event(new CommandeValidee($this)));
+            DB::afterCommit(fn () => event(new CommandeLivree($this)));
         });
     }
 
     /**
-     * Défait proprement une commande validée (V2 §5.5) : restitue le stock,
+     * Défait proprement une commande validée (V2 §5.5 révisé) : si elle
+     * avait été réellement livrée (donc comptabilisée), restitue le stock,
      * retire son chiffre d'affaires du cumul client, décrémente son
      * compteur de fidélité et recalcule ses bornes de dates — depuis les
-     * seules commandes encore validées. Idempotente. Ne supprime jamais la
-     * commande : son statut devient `annulee`, `validee_at` reste comme
-     * trace historique de la validation d'origine.
+     * seules commandes encore comptées. Une commande validée mais jamais
+     * livrée n'avait rien comptabilisé : l'annuler ne défait donc rien.
+     * Idempotente. Ne supprime jamais la commande : son statut devient
+     * `annulee`, `validee_at`/`livree_at` restent comme trace historique.
      */
     public function annuler(string $motif, User $utilisateur): void
     {
@@ -454,9 +514,9 @@ class Commande extends Model
         }
 
         DB::transaction(function () use ($motif, $utilisateur) {
-            $etaitValidee = $this->validee_at !== null;
+            $etaitLivree = $this->livree_at !== null;
 
-            if ($etaitValidee) {
+            if ($etaitLivree) {
                 foreach ($this->lignes as $ligne) {
                     $variante = ArticleVariante::query()
                         ->where('article_id', $ligne->article_id)
@@ -475,7 +535,7 @@ class Commande extends Model
                 $client->statut = $client->nb_commandes > 0 ? 'client' : 'prospect';
 
                 $bornes = (clone $restantes)
-                    ->selectRaw('MIN(COALESCE(validee_at, created_at)) as premiere, MAX(COALESCE(validee_at, created_at)) as derniere')
+                    ->selectRaw('MIN(COALESCE(livree_at, created_at)) as premiere, MAX(COALESCE(livree_at, created_at)) as derniere')
                     ->first();
                 $client->premiere_commande_at = $bornes?->premiere;
                 $client->derniere_commande_at = $bornes?->derniere;
@@ -487,7 +547,7 @@ class Commande extends Model
 
             CommandeJournal::consigner($this, 'annulee', [
                 'motif' => $motif,
-                'etait_validee' => $etaitValidee,
+                'etait_livree' => $etaitLivree,
             ], $utilisateur->id);
         });
     }

@@ -111,6 +111,19 @@ class CompositeurTest extends TestCase
         $this->assertSame(15500, $commande->total_a_payer);
         $this->assertSame(1, $commande->lignes()->count());
         $this->assertSame('Tee-shirt Couronne d\'épines', $commande->lignes()->first()->article_nom);
+
+        // La validation ne comptabilise plus rien : ni le stock, ni la
+        // fidélité/le CA de la cliente. Ce fait comptable attend la
+        // livraison confirmée (Commande::confirmerLivraison()).
+        $this->assertSame('prospect', $client->statut);
+        $this->assertSame(0, $client->nb_commandes);
+        $this->assertSame(5, $cat['variante']->refresh()->stock);
+
+        $commande->update(['statut' => 'en_livraison']);
+        $commande->confirmerLivraison($gerante);
+        $client->refresh();
+
+        $this->assertSame('livree', $commande->fresh()->statut);
         $this->assertSame('client', $client->statut);
         $this->assertSame(1, $client->nb_commandes);
         $this->assertSame(3, $cat['variante']->refresh()->stock); // 5 − 2

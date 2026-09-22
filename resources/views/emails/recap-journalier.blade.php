@@ -27,7 +27,7 @@ Récap du jour — RÉVOLUTION
 </td>
 <td style="width:33%;padding:10px;text-align:center;border:1px solid #E9E0D5;">
 <div style="font-size:24px;font-weight:600;">{{ $indicateurs['ventes'] }}</div>
-<div style="font-size:11px;color:#7A6E63;">Ventes validées</div>
+<div style="font-size:11px;color:#7A6E63;">Ventes</div>
 </td>
 <td style="width:33%;padding:10px;text-align:center;border:1px solid #E9E0D5;">
 <div style="font-size:24px;font-weight:600;">{{ $indicateurs['nouveaux_clients'] }}</div>
@@ -45,7 +45,7 @@ Récap du jour — RÉVOLUTION
 </tr>
 @forelse ($commandes as $commande)
 <tr>
-<td style="padding:8px;border-bottom:1px solid #E9E0D5;">{{ ($commande->validee_at ?? $commande->created_at)->format('H:i') }}</td>
+<td style="padding:8px;border-bottom:1px solid #E9E0D5;">{{ ($commande->livree_at ?? $commande->created_at)->format('H:i') }}</td>
 <td style="padding:8px;border-bottom:1px solid #E9E0D5;">{{ $commande->client->nom }}</td>
 <td style="padding:8px;border-bottom:1px solid #E9E0D5;">{{ $commande->libelle_article }}</td>
 <td style="padding:8px;border-bottom:1px solid #E9E0D5;">{{ Francais::frais($commande->total_articles) }}</td>

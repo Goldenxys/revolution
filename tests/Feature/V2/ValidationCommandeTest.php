@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\V2;
 
+use App\Events\CommandeLivree;
 use App\Events\CommandeValidee;
 use App\Models\Article;
 use App\Models\ArticleVariante;
@@ -18,8 +19,11 @@ use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 /**
- * Cœur de la V2 : Commande::valider() est LE fait comptable (§5.3, §9), et
- * Commande::annuler() doit le défaire proprement (§5.5).
+ * Cœur de la V2 restructurée : Commande::valider() verrouille la commande
+ * et génère le reçu, mais ne comptabilise plus rien. Commande::confirmerLivraison()
+ * est désormais LE fait comptable (CA, fidélité, stock), déclenché à la
+ * livraison confirmée. Commande::annuler() doit défaire uniquement ce qui a
+ * réellement été appliqué.
  */
 class ValidationCommandeTest extends TestCase
 {
@@ -50,7 +54,22 @@ class ValidationCommandeTest extends TestCase
         return [$client, $commande];
     }
 
-    public function test_valider_comptabilise_le_ca_hors_livraison_et_incremente_la_fidelite(): void
+    private function varianteSuivie(int $stock = 10): ArticleVariante
+    {
+        return ArticleVariante::create([
+            'article_id' => Article::create([
+                'collection_id' => CollectionCatalogue::create(['nom' => 'C', 'slug' => 'c'])->id,
+                'type_article_id' => TypeArticle::create(['nom' => 'T', 'slug' => 't'])->id,
+                'nom' => 'Art', 'slug' => 'art', 'prix' => 7000,
+            ])->id,
+            'taille_id' => Taille::create(['libelle' => 'XL'])->id,
+            'couleur_id' => Couleur::create(['nom' => 'Blanc'])->id,
+            'disponible' => true,
+            'stock' => $stock,
+        ]);
+    }
+
+    public function test_valider_verrouille_les_montants_et_genere_le_recu_sans_rien_comptabiliser(): void
     {
         Event::fake([CommandeValidee::class]);
         $gerante = User::factory()->create();
@@ -68,18 +87,37 @@ class ValidationCommandeTest extends TestCase
 
         $this->assertSame('validee', $commande->statut);
         $this->assertNotNull($commande->validee_at);
+        $this->assertNull($commande->livree_at);
         $this->assertSame($gerante->id, $commande->validee_par);
         $this->assertSame(14000, $commande->total_articles);          // 2 × 7000, aucune remise (1re commande)
         $this->assertSame(15500, $commande->total_a_payer);           // + 1500 de livraison
         $this->assertNotNull($commande->recu_token);
 
-        $this->assertSame('client', $client->statut);
-        $this->assertSame(1, $client->nb_commandes);
-        $this->assertSame(14000, $client->ca_cumule);
-        $this->assertNotNull($client->premiere_commande_at);
+        // Rien de comptable n'est encore appliqué : la commande n'est que
+        // validée, pas livrée.
+        $this->assertSame('prospect', $client->statut);
+        $this->assertSame(0, $client->nb_commandes);
+        $this->assertSame(0, $client->ca_cumule);
+        $this->assertNull($client->premiere_commande_at);
 
         Event::assertDispatched(CommandeValidee::class);
         $this->assertDatabaseHas('commande_journal', ['commande_id' => $commande->id, 'evenement' => 'validee']);
+    }
+
+    public function test_valider_ne_decremente_pas_le_stock(): void
+    {
+        $gerante = User::factory()->create();
+        [, $commande] = $this->prospectAvecDemande();
+        $variante = $this->varianteSuivie(stock: 10);
+
+        $commande->lignes()->create([
+            'article_id' => $variante->article_id, 'taille_id' => $variante->taille_id, 'couleur_id' => $variante->couleur_id,
+            'article_nom' => 'Art', 'quantite' => 3, 'prix_unitaire' => 7000,
+        ]);
+
+        $commande->valider($gerante);
+
+        $this->assertSame(10, $variante->refresh()->stock);
     }
 
     public function test_valider_applique_la_remise_fidelite_proposee_sur_le_ca_seul(): void
@@ -116,52 +154,17 @@ class ValidationCommandeTest extends TestCase
         $this->assertTrue($commande->remise_forcee);
     }
 
-    public function test_valider_decremente_le_stock_suivi_sans_jamais_descendre_sous_zero(): void
-    {
-        $gerante = User::factory()->create();
-        [, $commande] = $this->prospectAvecDemande();
-
-        $variante = ArticleVariante::create([
-            'article_id' => Article::create([
-                'collection_id' => CollectionCatalogue::create(['nom' => 'C', 'slug' => 'c'])->id,
-                'type_article_id' => TypeArticle::create(['nom' => 'T', 'slug' => 't'])->id,
-                'nom' => 'Art', 'slug' => 'art', 'prix' => 7000,
-            ])->id,
-            'taille_id' => Taille::create(['libelle' => 'XL'])->id,
-            'couleur_id' => Couleur::create(['nom' => 'Blanc'])->id,
-            'disponible' => true,
-            'stock' => 1,
-        ]);
-
-        $commande->lignes()->create([
-            'article_id' => $variante->article_id,
-            'taille_id' => $variante->taille_id,
-            'couleur_id' => $variante->couleur_id,
-            'article_nom' => 'Art', 'quantite' => 3, 'prix_unitaire' => 7000,
-        ]);
-
-        $commande->valider($gerante);
-
-        $this->assertSame(0, $variante->refresh()->stock);
-        $this->assertDatabaseHas('commande_journal', [
-            'commande_id' => $commande->id, 'evenement' => 'stock_negatif_evite',
-        ]);
-    }
-
     public function test_valider_est_idempotente(): void
     {
         Event::fake([CommandeValidee::class]);
         $gerante = User::factory()->create();
-        [$client, $commande] = $this->prospectAvecDemande();
+        [, $commande] = $this->prospectAvecDemande();
         $commande->lignes()->create(['article_nom' => 'X', 'quantite' => 1, 'prix_unitaire' => 7000]);
 
         $commande->valider($gerante);
         $commande->refresh();
         $commande->valider($gerante); // second appel : sans effet
 
-        $client->refresh();
-        $this->assertSame(1, $client->nb_commandes);
-        $this->assertSame(7000, $client->ca_cumule);
         Event::assertDispatchedTimes(CommandeValidee::class, 1);
         $this->assertSame(1, CommandeJournal::where('commande_id', $commande->id)->where('evenement', 'validee')->count());
     }
@@ -175,28 +178,107 @@ class ValidationCommandeTest extends TestCase
         $commande->valider($gerante);
     }
 
-    public function test_annuler_une_commande_validee_defait_tout(): void
+    public function test_confirmer_livraison_decremente_le_stock_et_comptabilise_le_ca_et_la_fidelite(): void
     {
+        Event::fake([CommandeLivree::class]);
         $gerante = User::factory()->create();
         [$client, $commande] = $this->prospectAvecDemande();
+        $variante = $this->varianteSuivie(stock: 10);
 
-        $variante = ArticleVariante::create([
-            'article_id' => Article::create([
-                'collection_id' => CollectionCatalogue::create(['nom' => 'C', 'slug' => 'c'])->id,
-                'type_article_id' => TypeArticle::create(['nom' => 'T', 'slug' => 't'])->id,
-                'nom' => 'Art', 'slug' => 'art', 'prix' => 7000,
-            ])->id,
-            'taille_id' => Taille::create(['libelle' => 'XL'])->id,
-            'couleur_id' => Couleur::create(['nom' => 'Blanc'])->id,
-            'disponible' => true, 'stock' => 10,
-        ]);
         $commande->lignes()->create([
             'article_id' => $variante->article_id, 'taille_id' => $variante->taille_id, 'couleur_id' => $variante->couleur_id,
             'article_nom' => 'Art', 'quantite' => 3, 'prix_unitaire' => 7000,
         ]);
 
         $commande->valider($gerante);
+        $commande->update(['statut' => 'en_livraison']);
+
+        $commande->confirmerLivraison($gerante);
+
+        $commande->refresh();
+        $client->refresh();
+
+        $this->assertSame('livree', $commande->statut);
+        $this->assertNotNull($commande->livree_at);
         $this->assertSame(7, $variante->refresh()->stock);
+
+        $this->assertSame('client', $client->statut);
+        $this->assertSame(1, $client->nb_commandes);
+        $this->assertSame(21000, $client->ca_cumule);
+        $this->assertNotNull($client->premiere_commande_at);
+
+        Event::assertDispatched(CommandeLivree::class);
+        $this->assertDatabaseHas('commande_journal', ['commande_id' => $commande->id, 'evenement' => 'livree']);
+    }
+
+    public function test_confirmer_livraison_ne_fait_rien_hors_statut_en_livraison(): void
+    {
+        $gerante = User::factory()->create();
+        [$client, $commande] = $this->prospectAvecDemande();
+        $commande->lignes()->create(['article_nom' => 'X', 'quantite' => 1, 'prix_unitaire' => 7000]);
+        $commande->valider($gerante); // statut = validee, pas en_livraison
+
+        $commande->confirmerLivraison($gerante);
+
+        $commande->refresh();
+        $client->refresh();
+        $this->assertSame('validee', $commande->statut);
+        $this->assertNull($commande->livree_at);
+        $this->assertSame(0, $client->nb_commandes);
+    }
+
+    public function test_confirmer_livraison_decremente_le_stock_suivi_sans_jamais_descendre_sous_zero(): void
+    {
+        $gerante = User::factory()->create();
+        [, $commande] = $this->prospectAvecDemande();
+        $variante = $this->varianteSuivie(stock: 1);
+
+        $commande->lignes()->create([
+            'article_id' => $variante->article_id, 'taille_id' => $variante->taille_id, 'couleur_id' => $variante->couleur_id,
+            'article_nom' => 'Art', 'quantite' => 3, 'prix_unitaire' => 7000,
+        ]);
+
+        $commande->valider($gerante);
+        $commande->update(['statut' => 'en_livraison']);
+        $commande->confirmerLivraison($gerante);
+
+        $this->assertSame(0, $variante->refresh()->stock);
+        $this->assertDatabaseHas('commande_journal', [
+            'commande_id' => $commande->id, 'evenement' => 'stock_negatif_evite',
+        ]);
+    }
+
+    public function test_confirmer_livraison_est_idempotente(): void
+    {
+        Event::fake([CommandeLivree::class]);
+        $gerante = User::factory()->create();
+        [$client, $commande] = $this->prospectAvecDemande();
+        $commande->lignes()->create(['article_nom' => 'X', 'quantite' => 1, 'prix_unitaire' => 7000]);
+        $commande->valider($gerante);
+        $commande->update(['statut' => 'en_livraison']);
+
+        $commande->confirmerLivraison($gerante);
+        $commande->refresh();
+        $commande->confirmerLivraison($gerante); // second appel : sans effet, statut n'est plus en_livraison
+
+        $client->refresh();
+        $this->assertSame(1, $client->nb_commandes);
+        $this->assertSame(7000, $client->ca_cumule);
+        Event::assertDispatchedTimes(CommandeLivree::class, 1);
+        $this->assertSame(1, CommandeJournal::where('commande_id', $commande->id)->where('evenement', 'livree')->count());
+    }
+
+    public function test_annuler_une_commande_validee_non_livree_ne_touche_rien(): void
+    {
+        $gerante = User::factory()->create();
+        [$client, $commande] = $this->prospectAvecDemande();
+        $variante = $this->varianteSuivie(stock: 10);
+
+        $commande->lignes()->create([
+            'article_id' => $variante->article_id, 'taille_id' => $variante->taille_id, 'couleur_id' => $variante->couleur_id,
+            'article_nom' => 'Art', 'quantite' => 3, 'prix_unitaire' => 7000,
+        ]);
+        $commande->valider($gerante); // jamais livrée : rien n'a encore été comptabilisé
 
         $commande->annuler('Cliente injoignable', $gerante);
 
@@ -204,21 +286,54 @@ class ValidationCommandeTest extends TestCase
         $client->refresh();
         $this->assertSame('annulee', $commande->statut);
         $this->assertNotNull($commande->validee_at); // trace historique conservée
+        $this->assertSame(10, $variante->refresh()->stock); // inchangé : jamais décrémenté
+        $this->assertSame(0, $client->nb_commandes);
+        $this->assertSame(0, $client->ca_cumule);
+        $this->assertSame('prospect', $client->statut);
+        $this->assertDatabaseHas('commande_journal', [
+            'commande_id' => $commande->id, 'evenement' => 'annulee', 'details->etait_livree' => false,
+        ]);
+    }
+
+    public function test_annuler_une_commande_livree_defait_tout(): void
+    {
+        $gerante = User::factory()->create();
+        [$client, $commande] = $this->prospectAvecDemande();
+        $variante = $this->varianteSuivie(stock: 10);
+
+        $commande->lignes()->create([
+            'article_id' => $variante->article_id, 'taille_id' => $variante->taille_id, 'couleur_id' => $variante->couleur_id,
+            'article_nom' => 'Art', 'quantite' => 3, 'prix_unitaire' => 7000,
+        ]);
+
+        $commande->valider($gerante);
+        $commande->update(['statut' => 'en_livraison']);
+        $commande->confirmerLivraison($gerante);
+        $this->assertSame(7, $variante->refresh()->stock);
+
+        $commande->annuler('Cliente injoignable', $gerante);
+
+        $commande->refresh();
+        $client->refresh();
+        $this->assertSame('annulee', $commande->statut);
+        $this->assertNotNull($commande->livree_at); // trace historique conservée
         $this->assertSame(10, $variante->refresh()->stock);
         $this->assertSame(0, $client->nb_commandes);
         $this->assertSame(0, $client->ca_cumule);
         $this->assertSame('prospect', $client->statut);
         $this->assertDatabaseHas('commande_journal', [
-            'commande_id' => $commande->id, 'evenement' => 'annulee',
+            'commande_id' => $commande->id, 'evenement' => 'annulee', 'details->etait_livree' => true,
         ]);
     }
 
     public function test_annuler_est_idempotente(): void
     {
         $gerante = User::factory()->create();
-        [$client, $commande] = $this->prospectAvecDemande();
+        [, $commande] = $this->prospectAvecDemande();
         $commande->lignes()->create(['article_nom' => 'X', 'quantite' => 1, 'prix_unitaire' => 7000]);
         $commande->valider($gerante);
+        $commande->update(['statut' => 'en_livraison']);
+        $commande->confirmerLivraison($gerante);
 
         $commande->annuler('motif', $gerante);
         $commande->annuler('motif', $gerante);

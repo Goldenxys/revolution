@@ -3,8 +3,8 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\CommandeResource\Pages;
+use App\Filament\Support\AvancerStatutAction;
 use App\Models\Commande;
-use App\Models\CommandeJournal;
 use App\Support\Francais;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Section as FormSection;
@@ -258,16 +258,7 @@ class CommandeResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make(),
 
-                Tables\Actions\Action::make('avancer_statut')
-                    ->label(fn (Commande $r) => $r->statut === 'en_livraison' ? 'Marquer livrée' : 'Passer en livraison')
-                    ->icon('heroicon-o-truck')
-                    ->color('gray')
-                    ->requiresConfirmation()
-                    ->visible(fn (Commande $r) => in_array($r->statut, ['validee', 'en_livraison'], true))
-                    ->action(function (Commande $r) {
-                        $r->update(['statut' => $r->statut === 'en_livraison' ? 'livree' : 'en_livraison']);
-                        CommandeJournal::consigner($r, 'statut_'.$r->statut, [], auth()->id());
-                    }),
+                AvancerStatutAction::pourTable(),
 
                 Tables\Actions\Action::make('annuler')
                     ->label('Annuler')
@@ -278,7 +269,9 @@ class CommandeResource extends Resource
                         Textarea::make('motif')
                             ->label('Motif de l\'annulation')
                             ->required()
-                            ->helperText('Le chiffre d\'affaires, la fidélité et le stock seront défaits. La commande est conservée, jamais supprimée.'),
+                            ->helperText(fn (?Commande $record) => $record?->livree_at !== null
+                                ? 'Cette commande avait été livrée : le chiffre d\'affaires, la fidélité et le stock seront défaits. La commande est conservée, jamais supprimée.'
+                                : 'Cette commande n\'a pas encore été livrée : rien n\'a encore été comptabilisé, l\'annulation n\'aura donc aucun effet sur le stock, le CA ou la fidélité. La commande est conservée, jamais supprimée.'),
                     ])
                     ->requiresConfirmation()
                     ->modalHeading('Annuler cette commande validée ?')

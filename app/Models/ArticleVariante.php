@@ -106,4 +106,22 @@ class ArticleVariante extends Model
     {
         return $query->where('stock', 0);
     }
+
+    /**
+     * Vrai si la variante peut être vendue maintenant : en vente ET (stock
+     * non suivi — NULL, toujours considéré disponible — OU stock > 0).
+     * Distinct de `disponible` seul : sert à bloquer la sélection d'une
+     * variante en rupture dans le compositeur de commande, là où
+     * `disponible` gate déjà la visibilité du catalogue public.
+     */
+    public function estAchetable(): bool
+    {
+        return $this->disponible && ($this->stock === null || $this->stock > 0);
+    }
+
+    public function scopeAchetable(Builder $query): Builder
+    {
+        return $query->where('disponible', true)
+            ->where(fn (Builder $q) => $q->whereNull('stock')->orWhere('stock', '>', 0));
+    }
 }

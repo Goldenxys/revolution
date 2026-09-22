@@ -32,11 +32,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
 
 /**
- * Le compositeur de commande (V2 §5.2) — l'écran neuf qui porte tout le
- * travail de la gérante. À gauche (dans la vue) : ce que la cliente a dit,
- * en lecture seule. Ici, le formulaire : les lignes réelles qu'elle
- * compose, la remise qu'elle ajuste, et le bouton « Valider la commande »
- * qui déclenche Commande::valider() — le fait comptable.
+ * Le compositeur de commande (V2 §5.2, restructuré) — l'écran neuf qui
+ * porte tout le travail de la gérante. À gauche (dans la vue) : ce que la
+ * cliente a dit, en lecture seule. Ici, le formulaire : les lignes réelles
+ * qu'elle compose (taille/couleur limitées à ce qui est réellement en
+ * stock), la remise qu'elle ajuste, et le bouton « Valider la commande »
+ * qui déclenche Commande::valider() — verrouille la commande et génère le
+ * reçu, mais ne compte plus le CA/la fidélité ni ne décrémente le stock :
+ * ce fait comptable attend la livraison confirmée (Commande::confirmerLivraison()).
  */
 class ComposerDemande extends Page implements HasForms
 {
@@ -79,7 +82,7 @@ class ComposerDemande extends Page implements HasForms
         return $form
             ->schema([
                 Section::make('Ce que la gérante décide')
-                    ->description('Les prix sont pré-remplis depuis le catalogue et restent modifiables. Le stock est indiqué, jamais bloquant.')
+                    ->description('Les prix sont pré-remplis depuis le catalogue et restent modifiables. Seules les tailles/couleurs en stock sont proposées.')
                     ->schema([
                         Repeater::make('lignes')
                             ->hiddenLabel()
@@ -113,23 +116,25 @@ class ComposerDemande extends Page implements HasForms
 
                                 Select::make('taille_id')
                                     ->label('Taille')
-                                    ->options(fn () => Taille::query()->actives()->orderBy('ordre')->pluck('libelle', 'id'))
+                                    ->options(fn (Get $get) => static::optionsTailles($get))
                                     ->native(false)
                                     ->placeholder('—')
                                     ->live()
                                     ->columnSpan(['sm' => 1, 'lg' => 3])
                                     ->visible(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_tailles)
-                                    ->required(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_tailles),
+                                    ->required(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_tailles)
+                                    ->helperText('Seules les tailles en stock sont proposées.'),
 
                                 Select::make('couleur_id')
                                     ->label('Couleur')
-                                    ->options(fn () => Couleur::query()->actives()->orderBy('ordre')->pluck('nom', 'id'))
+                                    ->options(fn (Get $get) => static::optionsCouleurs($get))
                                     ->native(false)
                                     ->placeholder('—')
                                     ->live()
                                     ->columnSpan(['sm' => 1, 'lg' => 3])
                                     ->visible(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_couleurs)
-                                    ->required(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_couleurs),
+                                    ->required(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_couleurs)
+                                    ->helperText('Seules les couleurs en stock sont proposées.'),
 
                                 TextInput::make('quantite')
                                     ->label('Quantité')
@@ -230,7 +235,7 @@ class ComposerDemande extends Page implements HasForms
                 ->extraAttributes(['data-tour' => 'valider-btn'])
                 ->requiresConfirmation()
                 ->modalHeading('Valider la commande ?')
-                ->modalDescription('Cette commande sera comptabilisée dans votre chiffre d\'affaires. Le stock des variantes vendues sera décrémenté et la cliente passera en commande validée.')
+                ->modalDescription('Un reçu sera généré et la commande passera en « validée », prête pour la livraison. Le chiffre d\'affaires, la fidélité et le stock ne seront décomptés qu\'à la livraison confirmée.')
                 ->modalSubmitActionLabel('Oui, valider')
                 ->action('valider'),
         ];
@@ -306,6 +311,56 @@ class ComposerDemande extends Page implements HasForms
             ->all();
     }
 
+    /**
+     * Tailles achetables pour l'article sélectionné (stock > 0 ou non
+     * suivi, en vente), filtrées par la couleur déjà choisie le cas
+     * échéant — une variante en rupture n'apparaît plus dans ce select
+     * (restructuration stock, blocage réel). Si la ligne pointait déjà vers
+     * une taille désormais épuisée (stock parti entre-temps), on la laisse
+     * visible avec la mention « (épuisé) » plutôt que de la faire
+     * disparaître silencieusement sous les yeux de la gérante.
+     *
+     * @return array<int, string>
+     */
+    public static function optionsTailles(Get $get): array
+    {
+        $article = Article::find($get('article_id'));
+
+        if (! $article) {
+            return [];
+        }
+
+        $options = $article->taillesAchetables($get('couleur_id'))->pluck('libelle', 'id')->all();
+
+        $tailleId = $get('taille_id');
+
+        if (filled($tailleId) && ! isset($options[$tailleId]) && $taille = Taille::find($tailleId)) {
+            $options[$taille->id] = $taille->libelle.' (épuisé)';
+        }
+
+        return $options;
+    }
+
+    /** @return array<int, string> */
+    public static function optionsCouleurs(Get $get): array
+    {
+        $article = Article::find($get('article_id'));
+
+        if (! $article) {
+            return [];
+        }
+
+        $options = $article->couleursAchetables($get('taille_id'))->pluck('nom', 'id')->all();
+
+        $couleurId = $get('couleur_id');
+
+        if (filled($couleurId) && ! isset($options[$couleurId]) && $couleur = Couleur::find($couleurId)) {
+            $options[$couleur->id] = $couleur->nom.' (épuisé)';
+        }
+
+        return $options;
+    }
+
     public static function indicationStock(mixed $articleId, mixed $tailleId, mixed $couleurId): Htmlable
     {
         if (blank($articleId)) {
@@ -331,21 +386,21 @@ class ComposerDemande extends Page implements HasForms
 
         if (! $variante) {
             return new HtmlString('<span class="text-sm text-warning-600 dark:text-warning-400">'
-                .e($libelle).' — variante inconnue du catalogue. Vous pouvez quand même la vendre.</span>');
+                .e($libelle).' — pas encore liée au suivi de stock (fiche article).</span>');
         }
 
-        if (! $variante->disponible) {
+        if (! $variante->estAchetable()) {
             return new HtmlString('<span class="text-sm text-danger-600 dark:text-danger-400">'
-                .e($libelle).' — marquée indisponible. Le système avertit, vous décidez.</span>');
+                .e($libelle).' — en rupture ou indisponible. Choisissez une autre variante avant de valider.</span>');
         }
 
         if ($variante->stock === null) {
             return new HtmlString('<span class="text-sm text-gray-500">'.e($libelle).' — stock non suivi.</span>');
         }
 
-        $couleurClasse = $variante->stock <= 0
-            ? 'text-danger-600 dark:text-danger-400'
-            : ($variante->stock <= $variante->seuil_alerte ? 'text-warning-600 dark:text-warning-400' : 'text-success-600 dark:text-success-400');
+        $couleurClasse = $variante->stock <= $variante->seuil_alerte
+            ? 'text-warning-600 dark:text-warning-400'
+            : 'text-success-600 dark:text-success-400';
 
         return new HtmlString('<span class="text-sm '.$couleurClasse.'">'
             .e($libelle).' — '.(int) $variante->stock.' en stock</span>');

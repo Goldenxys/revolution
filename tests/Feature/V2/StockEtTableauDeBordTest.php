@@ -21,7 +21,11 @@ class StockEtTableauDeBordTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function venteValidee(int $totalArticles, int $frais, ?\DateTimeInterface $quand = null): Commande
+    /**
+     * Une commande réellement livrée — le seul fait comptable (V2 révisé) :
+     * `livree_at` renseigné, pas seulement `validee_at`.
+     */
+    private function venteLivree(int $totalArticles, int $frais, ?\DateTimeInterface $quand = null): Commande
     {
         $client = Client::create([
             'cle' => (string) random_int(10000000, 99999999),
@@ -31,7 +35,8 @@ class StockEtTableauDeBordTest extends TestCase
 
         return Commande::create([
             'client_id' => $client->id, 'commune' => 'Cocody', 'frais_livraison' => $frais,
-            'mode_livraison' => 'livreur', 'statut' => 'validee', 'validee_at' => $quand ?? now(),
+            'mode_livraison' => 'livreur', 'statut' => 'livree',
+            'validee_at' => $quand ?? now(), 'livree_at' => $quand ?? now(),
             'sous_total' => $totalArticles, 'total_articles' => $totalArticles,
             'total_a_payer' => $totalArticles + $frais, 'numero_commande_client' => 1,
         ]);
@@ -41,8 +46,8 @@ class StockEtTableauDeBordTest extends TestCase
     {
         $gerante = User::factory()->create();
 
-        $this->venteValidee(10000, 1500);
-        $this->venteValidee(5000, 2000);
+        $this->venteLivree(10000, 1500);
+        $this->venteLivree(5000, 2000);
 
         // Une demande en attente ne compte pas.
         $prospect = Client::create(['cle' => '11111111', 'nom' => 'P', 'telephone' => '11111111', 'nb_commandes' => 0]);
@@ -82,7 +87,7 @@ class StockEtTableauDeBordTest extends TestCase
         Storage::fake('local');
         Mail::fake();
         $gerante = User::factory()->create();
-        $this->venteValidee(9000, 1500);
+        $this->venteLivree(9000, 1500);
 
         $this->actingAs($gerante)->get('/'.config('revolution.admin_path'))->assertOk();
     }

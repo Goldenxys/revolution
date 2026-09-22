@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\StockResource\Pages;
 
 use App\Filament\Resources\StockResource;
+use App\Filament\Resources\StockResource\Widgets\StockStatsWidget;
 use App\Filament\Support\GuideAction;
 use Filament\Resources\Pages\ListRecords;
 
@@ -19,6 +20,13 @@ class ListStock extends ListRecords
     {
         return [
             GuideAction::make('stock'),
+        ];
+    }
+
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            StockStatsWidget::class,
         ];
     }
 }

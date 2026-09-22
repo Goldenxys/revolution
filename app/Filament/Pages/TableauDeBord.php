@@ -19,6 +19,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
@@ -99,22 +100,36 @@ class TableauDeBord extends Page implements HasTable
     }
 
     /**
-     * V2 §9 — le chiffre d'affaires se compte sur les commandes VALIDÉES,
-     * à la date de `validee_at`, jamais `created_at`. Les frais de livraison
-     * ne sont pas suivis ici : ils n'entrent jamais dans le chiffre
-     * d'affaires et cette agrégation n'a aucune utilité de pilotage.
+     * V2 §9 (révisé) — le chiffre d'affaires se compte sur les commandes
+     * réellement COMPTÉES : livrées pour le flux V2 (`livree_at`), finales
+     * dès la création pour le formulaire libre legacy (`created_at`) — voir
+     * Commande::scopeComptees(). Une commande validée mais pas encore
+     * livrée n'apparaît nulle part ici, cohérent avec Client.ca_cumule. Les
+     * frais de livraison ne sont pas suivis ici : ils n'entrent jamais dans
+     * le chiffre d'affaires et cette agrégation n'a aucune utilité de
+     * pilotage.
      *
      * @return array<string, int>
      */
     private function indicateursPour(string $date): array
     {
-        $valideesDuJour = Commande::query()->validees()->whereDate('validee_at', $date);
+        $compteesDuJour = $this->commandesComptees()->whereRaw('DATE(COALESCE(livree_at, created_at)) = ?', [$date]);
 
         return [
-            'ca' => (int) (clone $valideesDuJour)->sum('total_articles'),
-            'ventes' => (clone $valideesDuJour)->count(),
+            'ca' => (int) (clone $compteesDuJour)->sum('total_articles'),
+            'ventes' => (clone $compteesDuJour)->count(),
             'nouveaux_clients' => Client::query()->whereDate('premiere_commande_at', $date)->count(),
         ];
+    }
+
+    /**
+     * Point d'entrée unique pour toutes les requêtes du tableau de bord
+     * portant sur les commandes comptées (jour, mois, top articles, table,
+     * récap e-mail) — évite que chaque site d'appel réécrive le même scope.
+     */
+    private function commandesComptees(): Builder
+    {
+        return Commande::query()->comptees();
     }
 
     /**
@@ -139,10 +154,11 @@ class TableauDeBord extends Page implements HasTable
         $debut = $this->carbonDate()->copy()->startOfMonth();
         $fin = $this->carbonDate()->copy()->endOfMonth();
 
-        $valideesDuMois = Commande::query()->validees()->whereBetween('validee_at', [$debut, $fin]);
+        $compteesDuMois = $this->commandesComptees()
+            ->whereRaw('COALESCE(livree_at, created_at) BETWEEN ? AND ?', [$debut, $fin]);
 
         return [
-            'ca' => (int) (clone $valideesDuMois)->sum('total_articles'),
+            'ca' => (int) (clone $compteesDuMois)->sum('total_articles'),
             'nouveaux_clients' => Client::query()->whereBetween('premiere_commande_at', [$debut, $fin])->count(),
         ];
     }
@@ -159,7 +175,8 @@ class TableauDeBord extends Page implements HasTable
 
         return CommandeLigne::query()
             ->selectRaw('article_nom, SUM(quantite) as quantite')
-            ->whereHas('commande', fn ($q) => $q->validees()->whereBetween('validee_at', [$debut, $fin]))
+            ->whereHas('commande', fn ($q) => $q->comptees()
+                ->whereRaw('COALESCE(livree_at, created_at) BETWEEN ? AND ?', [$debut, $fin]))
             ->groupBy('article_nom')
             ->orderByDesc('quantite')
             ->limit(5)
@@ -207,15 +224,18 @@ class TableauDeBord extends Page implements HasTable
     {
         return $table
             ->query(
-                Commande::query()
+                $this->commandesComptees()
                     ->with(['client', 'lignes'])
-                    ->validees()
-                    ->whereDate('validee_at', $this->date)
+                    ->whereRaw('DATE(COALESCE(livree_at, created_at)) = ?', [$this->date])
             )
-            ->heading('Ventes validées du '.$this->libelleJour())
-            ->defaultSort('validee_at', 'desc')
+            ->heading('Ventes du '.$this->libelleJour())
+            ->defaultSort('livree_at', 'desc')
             ->columns([
-                TextColumn::make('validee_at')->label('Validée')->time('H:i'),
+                TextColumn::make('comptee_a')
+                    ->label('Comptée')
+                    ->state(fn (Commande $commande) => ($commande->livree_at ?? $commande->created_at)?->format('H:i'))
+                    ->badge(fn (Commande $commande) => $commande->livree_at === null)
+                    ->color('gray'),
 
                 TextColumn::make('client.nom')
                     ->label('Cliente')
@@ -282,10 +302,10 @@ class TableauDeBord extends Page implements HasTable
                 ->icon('heroicon-o-envelope')
                 ->color('primary')
                 ->action(function () {
-                    $commandes = Commande::with(['client', 'lignes'])
-                        ->validees()
-                        ->whereDate('validee_at', $this->date)
-                        ->orderBy('validee_at')
+                    $commandes = $this->commandesComptees()
+                        ->with(['client', 'lignes'])
+                        ->whereRaw('DATE(COALESCE(livree_at, created_at)) = ?', [$this->date])
+                        ->orderByRaw('COALESCE(livree_at, created_at)')
                         ->get();
 
                     try {

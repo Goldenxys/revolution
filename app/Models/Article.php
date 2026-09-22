@@ -102,6 +102,36 @@ class Article extends Model
     }
 
     /**
+     * @return \Illuminate\Support\Collection<int, Taille>
+     */
+    public function taillesAchetables(?int $couleurId = null): \Illuminate\Support\Collection
+    {
+        return Taille::query()
+            ->whereIn('id', $this->variantes()
+                ->achetable()
+                ->when($couleurId, fn ($query) => $query->where('couleur_id', $couleurId))
+                ->pluck('taille_id')
+                ->filter())
+            ->orderBy('ordre')
+            ->get();
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, Couleur>
+     */
+    public function couleursAchetables(?int $tailleId = null): \Illuminate\Support\Collection
+    {
+        return Couleur::query()
+            ->whereIn('id', $this->variantes()
+                ->achetable()
+                ->when($tailleId, fn ($query) => $query->where('taille_id', $tailleId))
+                ->pluck('couleur_id')
+                ->filter())
+            ->orderBy('ordre')
+            ->get();
+    }
+
+    /**
      * Un article actif avec au moins une variante disponible : c'est la
      * seule condition de visibilité publique, un article épuisé disparaît
      * de lui-même sans que la gérante ait à le désactiver.
