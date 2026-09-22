@@ -69,7 +69,7 @@ class StockResource extends Resource
                 TextColumn::make('article.nom')
                     ->label('Article')
                     ->description(fn (ArticleVariante $v) => $v->article?->collection?->nom)
-                    ->searchable(query: fn (Builder $q, string $s) => $q->whereHas('article', fn (Builder $qa) => $qa->where('nom', 'like', "%{$s}%")))
+                    ->searchable(query: fn (Builder $query, string $search) => $query->whereHas('article', fn (Builder $qa) => $qa->where('nom', 'like', "%{$search}%")))
                     ->sortable(),
 
                 TextColumn::make('taille.libelle')->label('Taille')->placeholder('—'),

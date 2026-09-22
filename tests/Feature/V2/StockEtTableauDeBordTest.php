@@ -82,6 +82,51 @@ class StockEtTableauDeBordTest extends TestCase
             ->assertCanNotSeeTableRecords([$ok]);
     }
 
+    /**
+     * Régression : la recherche par nom d'article plantait en production
+     * (closure ->searchable(query: fn (Builder $q, string $s) => ...) —
+     * `$s` n'est pas un nom de paramètre que Filament sait injecter, seul
+     * `$search` l'est). Ce test tape effectivement un terme de recherche,
+     * ce que l'ancien test du filtre `etat` ne faisait jamais.
+     */
+    public function test_lecran_mon_stock_recherche_par_nom_darticle_sans_erreur(): void
+    {
+        $gerante = User::factory()->create();
+        $collection = CollectionCatalogue::create(['nom' => 'C', 'slug' => 'c']);
+        $type = TypeArticle::create(['nom' => 'T', 'slug' => 't', 'gere_tailles' => true, 'gere_couleurs' => true]);
+
+        $robe = Article::create(['collection_id' => $collection->id, 'type_article_id' => $type->id, 'nom' => 'Robe Couronne', 'slug' => 'robe-couronne', 'prix' => 9000]);
+        $pull = Article::create(['collection_id' => $collection->id, 'type_article_id' => $type->id, 'nom' => 'Pull Écriture', 'slug' => 'pull-ecriture', 'prix' => 8000]);
+
+        $varianteRobe = ArticleVariante::create(['article_id' => $robe->id, 'disponible' => true, 'stock' => 5]);
+        $variantePull = ArticleVariante::create(['article_id' => $pull->id, 'disponible' => true, 'stock' => 5]);
+
+        Livewire::actingAs($gerante)->test(ListStock::class)
+            ->searchTable('Couronne')
+            ->assertCanSeeTableRecords([$varianteRobe])
+            ->assertCanNotSeeTableRecords([$variantePull]);
+    }
+
+    public function test_lecran_mon_stock_filtre_par_taille_et_couleur(): void
+    {
+        $gerante = User::factory()->create();
+        $collection = CollectionCatalogue::create(['nom' => 'C', 'slug' => 'c']);
+        $type = TypeArticle::create(['nom' => 'T', 'slug' => 't', 'gere_tailles' => true, 'gere_couleurs' => true]);
+        $article = Article::create(['collection_id' => $collection->id, 'type_article_id' => $type->id, 'nom' => 'Art', 'slug' => 'art', 'prix' => 7000]);
+
+        $xl = \App\Models\Taille::create(['libelle' => 'XL']);
+        $m = \App\Models\Taille::create(['libelle' => 'M']);
+        $noir = \App\Models\Couleur::create(['nom' => 'Noir']);
+
+        $varianteXl = ArticleVariante::create(['article_id' => $article->id, 'taille_id' => $xl->id, 'couleur_id' => $noir->id, 'disponible' => true, 'stock' => 5]);
+        $varianteM = ArticleVariante::create(['article_id' => $article->id, 'taille_id' => $m->id, 'couleur_id' => $noir->id, 'disponible' => true, 'stock' => 5]);
+
+        Livewire::actingAs($gerante)->test(ListStock::class)
+            ->filterTable('taille_id', $xl->id)
+            ->assertCanSeeTableRecords([$varianteXl])
+            ->assertCanNotSeeTableRecords([$varianteM]);
+    }
+
     public function test_le_tableau_de_bord_se_charge(): void
     {
         Storage::fake('local');
