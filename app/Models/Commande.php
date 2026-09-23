@@ -217,14 +217,21 @@ class Commande extends Model
 
     /**
      * Nom de collection à afficher (mail, notification) — la vraie
-     * collection du catalogue pour une commande catalogue (déduite de sa
-     * première ligne), le libellé legacy sinon. Centralisé ici pour que
-     * CommandeRecue, ResoutClientEtNotifie et le futur export ne
-     * réimplémentent pas chacun leur propre logique.
+     * collection du catalogue pour une commande composée au compositeur
+     * (déduite de sa première ligne), le libellé legacy sinon. Centralisé
+     * ici pour que CommandeRecue, ResoutClientEtNotifie et le futur export
+     * ne réimplémentent pas chacun leur propre logique.
+     *
+     * Se base sur la présence de `lignes`, pas sur `utilise_catalogue` :
+     * ce booléen n'est posé que par l'ancien flux CommandeCatalogueController
+     * (orphelin) — Commande::valider(), le vrai chemin du compositeur V2,
+     * ne le renseigne jamais, ce qui faisait retomber toute commande
+     * composée sur le libellé legacy (régression constatée sur la toute
+     * première commande réelle livrée en production).
      */
     public function libelleCollection(): string
     {
-        if ($this->utilise_catalogue) {
+        if ($this->lignes->isNotEmpty()) {
             return $this->lignes->first()?->article?->collection?->nom ?? 'RÉVOLUTION';
         }
 
@@ -233,11 +240,12 @@ class Commande extends Model
 
     /**
      * Vrai si la commande relève de la collection « My verse » — legacy ou
-     * catalogue — utile pour les touches visuelles (icône dorée, verset).
+     * composée au compositeur — utile pour les touches visuelles (icône
+     * dorée, verset).
      */
     public function estCollectionMyVerse(): bool
     {
-        if ($this->utilise_catalogue) {
+        if ($this->lignes->isNotEmpty()) {
             return $this->lignes->first()?->article?->collection?->slug === 'my_verse';
         }
 
@@ -277,6 +285,29 @@ class Commande extends Model
         }
 
         return trim(($this->type_article ?? 'Article').' « '.($this->nom_article ?? '').' »');
+    }
+
+    /**
+     * Libellé taille/couleur pour la colonne dédiée de CommandeResource —
+     * même logique lignes-vs-legacy que libelle_article ci-dessus, isolée
+     * pour rester lisible d'un coup d'œil même quand libelle_article résume
+     * plusieurs articles.
+     */
+    public function libelleTailleCouleur(): string
+    {
+        if ($this->relationLoaded('lignes') ? $this->lignes->isNotEmpty() : $this->lignes()->exists()) {
+            $lignes = $this->relationLoaded('lignes') ? $this->lignes : $this->lignes()->get();
+
+            if ($lignes->count() === 1) {
+                $ligne = $lignes->first();
+
+                return collect([$ligne->taille_libelle, $ligne->couleur_nom])->filter()->implode(' · ') ?: '—';
+            }
+
+            return 'Plusieurs';
+        }
+
+        return collect([$this->taille, $this->couleur])->filter()->implode(' · ') ?: '—';
     }
 
     /**

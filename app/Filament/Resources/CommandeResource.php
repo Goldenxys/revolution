@@ -14,6 +14,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
+use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
@@ -24,7 +25,6 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 
 class CommandeResource extends Resource
 {
@@ -171,7 +171,7 @@ class CommandeResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->with('client'))
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['client', 'lignes.article.collection']))
             ->defaultSort('created_at', 'desc')
             ->columns([
                 TextColumn::make('created_at')
@@ -192,23 +192,17 @@ class CommandeResource extends Resource
                 TextColumn::make('collection')
                     ->label('Collection')
                     ->badge()
-                    ->formatStateUsing(fn (string $state) => $state === 'my_verse' ? 'MY VERSE' : 'Autre collection')
-                    ->color(fn (string $state) => $state === 'my_verse' ? 'gold' : 'gray'),
+                    ->state(fn (Commande $commande) => $commande->libelleCollection())
+                    ->color(fn (Commande $commande) => $commande->estCollectionMyVerse() ? 'gold' : 'gray'),
 
                 TextColumn::make('article')
                     ->label('Article')
-                    ->state(function (Commande $commande) {
-                        if ($commande->estMyVerse()) {
-                            return trim(($commande->verset_reference ?: 'Verset').' · '.Str::limit($commande->verset_texte ?: '—', 40));
-                        }
-
-                        return trim(($commande->type_article ?? '').' « '.($commande->nom_article ?? '').' »');
-                    })
+                    ->state(fn (Commande $commande) => $commande->libelle_article)
                     ->wrap(),
 
                 TextColumn::make('taille_couleur')
                     ->label('Taille / couleur')
-                    ->state(fn (Commande $commande) => collect([$commande->taille, $commande->couleur])->filter()->implode(' · ') ?: '—'),
+                    ->state(fn (Commande $commande) => $commande->libelleTailleCouleur()),
 
                 TextColumn::make('commune')
                     ->label('Commune')
@@ -314,10 +308,33 @@ class CommandeResource extends Resource
                     TextEntry::make('client.telephone')->label('Téléphone'),
                     TextEntry::make('client.email')->label('Email')->placeholder('—'),
                     TextEntry::make('collection')->label('Collection')
-                        ->formatStateUsing(fn (string $state) => $state === 'my_verse' ? 'MY VERSE BY RÉVOLUTION' : 'Autre collection'),
+                        ->state(fn (Commande $commande) => $commande->libelleCollection()),
+                ]),
+
+            // Une commande composée au compositeur (V2) a ses articles dans
+            // `lignes`, pas dans les colonnes legacy ci-dessous — régression
+            // corrigée : cette section restait vide (taille/couleur/nom
+            // d'article legacy jamais renseignés pour ce flux).
+            InfolistSection::make('Articles')
+                ->visible(fn (Commande $commande) => $commande->lignes->isNotEmpty())
+                ->schema([
+                    RepeatableEntry::make('lignes')
+                        ->label(null)
+                        ->columns(5)
+                        ->schema([
+                            TextEntry::make('article_nom')->label('Article')->columnSpan(2),
+                            TextEntry::make('taille_libelle')->label('Taille')->placeholder('—'),
+                            TextEntry::make('couleur_nom')->label('Couleur')->placeholder('—'),
+                            TextEntry::make('quantite')->label('Qté'),
+                            TextEntry::make('prix_unitaire')->label('Prix unit.')
+                                ->formatStateUsing(fn ($state) => Francais::frais((int) $state))
+                                ->columnSpan(2),
+                            TextEntry::make('verset')->label('Verset')->placeholder('—')->columnSpanFull(),
+                        ]),
                 ]),
 
             InfolistSection::make('Article')
+                ->visible(fn (Commande $commande) => $commande->lignes->isEmpty())
                 ->columns(2)
                 ->schema([
                     TextEntry::make('taille')->label('Taille')->placeholder('Taille unique'),
