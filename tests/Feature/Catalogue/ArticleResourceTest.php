@@ -69,6 +69,30 @@ class ArticleResourceTest extends TestCase
         $this->actingAs($gerante)->get($this->chemin("/articles/{$article->id}/modifier"))->assertOk();
     }
 
+    /**
+     * L'onglet « Disponibilité » n'a de sens que pour une collection au
+     * stock géré — une collection fabriquée à la demande (ex. My verse)
+     * n'a rien à y déclarer (ArticleVariante::booted() la rend toujours
+     * achetable). Régression : l'onglet restait affiché avec une grille
+     * jamais cochée, rendant l'article impossible à composer.
+     */
+    public function test_longlet_disponibilite_napparait_que_pour_une_collection_au_stock_gere(): void
+    {
+        $gerante = User::factory()->create();
+        $articleStocke = $this->creerArticleAvecType(gereTailles: true, gereCouleurs: true);
+        $articleSurDemande = $this->creerArticleAvecType(gereTailles: true, gereCouleurs: true, gereStock: false);
+
+        // Le nom de l'onglet apparaît de toute façon dans la navigation ;
+        // on vérifie plutôt le contenu propre à la grille elle-même.
+        $this->actingAs($gerante)->get($this->chemin("/articles/{$articleStocke->id}/modifier"))
+            ->assertOk()
+            ->assertSee('masqué du site public');
+
+        $this->actingAs($gerante)->get($this->chemin("/articles/{$articleSurDemande->id}/modifier"))
+            ->assertOk()
+            ->assertDontSee('masqué du site public');
+    }
+
     public function test_creer_un_article_genere_le_slug_et_reste_masque_tant_quaucune_variante_nest_disponible(): void
     {
         $gerante = User::factory()->create();
@@ -156,9 +180,9 @@ class ArticleResourceTest extends TestCase
         $this->assertFalse(ArticleVariante::existeDeja($article->id, null, null));
     }
 
-    private function creerArticleAvecType(bool $gereTailles, bool $gereCouleurs): Article
+    private function creerArticleAvecType(bool $gereTailles, bool $gereCouleurs, bool $gereStock = true): Article
     {
-        $collection = CollectionCatalogue::create(['nom' => 'Test', 'slug' => 'test-'.uniqid()]);
+        $collection = CollectionCatalogue::create(['nom' => 'Test', 'slug' => 'test-'.uniqid(), 'gere_stock' => $gereStock]);
         $type = TypeArticle::create([
             'nom' => 'Type test',
             'slug' => 'type-test-'.uniqid(),

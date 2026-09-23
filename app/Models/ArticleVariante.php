@@ -41,21 +41,21 @@ class ArticleVariante extends Model
     }
 
     /**
-     * Pour une collection au stock géré, `disponible` n'est plus une case à
-     * cocher : elle est entièrement dérivée de la présence de stock, à
-     * chaque sauvegarde, quel que soit le point d'entrée (édition en ligne
-     * dans « Mon stock », entrée de stock, tinker...). La gérante ne peut
-     * plus la forcer — seul le stock enregistré décide. Les collections
-     * fabriquées à la demande (ex. My verse, `gere_stock = false`) gardent
-     * le contrôle manuel d'origine : il n'y a pas de stock dont dériver quoi
-     * que ce soit.
+     * `disponible` n'est plus une case à cocher nulle part : elle est
+     * entièrement dérivée à chaque sauvegarde, quel que soit le point
+     * d'entrée (édition en ligne dans « Mon stock », entrée de stock,
+     * tinker...). Pour une collection au stock géré : présence de stock.
+     * Pour une collection fabriquée à la demande (ex. My verse,
+     * `gere_stock = false`) : toujours vraie — rien à gérer, la gérante
+     * compose librement au compositeur sans notion de disponibilité à
+     * déclarer à l'avance.
      */
     protected static function booted(): void
     {
         static::saving(function (ArticleVariante $variante) {
-            if ($variante->article?->gere_stock !== false) {
-                $variante->disponible = $variante->stock !== null && $variante->stock > 0;
-            }
+            $variante->disponible = $variante->article?->gere_stock === false
+                ? true
+                : ($variante->stock !== null && $variante->stock > 0);
         });
     }
 
@@ -127,31 +127,29 @@ class ArticleVariante extends Model
     }
 
     /**
-     * Vrai si la variante peut être vendue maintenant : en vente ET (stock
-     * suivi > 0, OU stock non suivi — NULL, seulement pertinent pour une
-     * collection fabriquée à la demande où `disponible` reste manuel — OU
-     * la collection ne gère pas le stock, ex. My verse : une rupture n'a
-     * alors aucun sens). Pour une collection au stock géré, `disponible`
-     * est déjà dérivé du stock à la sauvegarde (voir booted() ci-dessus),
-     * donc en pratique cette méthode s'y réduit à `disponible`. Distinct de
-     * `disponible` seul : sert à bloquer la sélection d'une variante en
-     * rupture dans le compositeur de commande, là où `disponible` gate déjà
-     * la visibilité du catalogue public.
+     * Vrai si la variante peut être vendue maintenant. Une collection
+     * fabriquée à la demande (ex. My verse, `gere_stock = false`) est
+     * toujours achetable — aucune notion de disponibilité à déclarer à
+     * l'avance, la gérante compose librement au compositeur. Sinon : en
+     * vente ET stock suivi > 0 (ou non suivi — NULL). `disponible` est déjà
+     * dérivé de tout ceci à la sauvegarde (voir booted() ci-dessus) ; le
+     * test explicite sur `gere_stock` ici est un garde-fou en plus, pas une
+     * dépendance au seul état de `disponible` en base.
      */
     public function estAchetable(): bool
     {
-        if (! $this->disponible) {
-            return false;
+        if ($this->article?->gere_stock === false) {
+            return true;
         }
 
-        return $this->stock === null || $this->stock > 0 || $this->article?->gere_stock === false;
+        return $this->disponible && ($this->stock === null || $this->stock > 0);
     }
 
     public function scopeAchetable(Builder $query): Builder
     {
-        return $query->where('disponible', true)
-            ->where(fn (Builder $q) => $q->whereNull('stock')
-                ->orWhere('stock', '>', 0)
-                ->orWhereHas('article.collection', fn (Builder $qc) => $qc->where('gere_stock', false)));
+        return $query->where(fn (Builder $q) => $q
+            ->whereHas('article.collection', fn (Builder $qc) => $qc->where('gere_stock', false))
+            ->orWhere(fn (Builder $q2) => $q2->where('disponible', true)
+                ->where(fn (Builder $q3) => $q3->whereNull('stock')->orWhere('stock', '>', 0))));
     }
 }

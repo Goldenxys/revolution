@@ -168,11 +168,13 @@ class DisponibiliteAchatTest extends TestCase
         $this->assertTrue($variante->estAchetable());
     }
 
-    public function test_une_variante_indisponible_dune_collection_sur_demande_reste_bloquee(): void
+    /**
+     * gere_stock=false lève tout blocage, y compris une tentative de mise
+     * à false : plus aucune notion de disponibilité à déclarer pour une
+     * collection fabriquée à la demande (ArticleVariante::booted()).
+     */
+    public function test_une_variante_dune_collection_sur_demande_reste_achetable_meme_si_on_tente_de_la_bloquer(): void
     {
-        // gere_stock=false lève le blocage lié au STOCK, pas celui lié à
-        // `disponible` — la gérante garde la main pour retirer un modèle
-        // de la vente.
         $variante = ArticleVariante::create([
             'article_id' => $this->articleSurDemande()->id,
             'taille_id' => Taille::create(['libelle' => 'M'])->id,
@@ -181,7 +183,8 @@ class DisponibiliteAchatTest extends TestCase
             'stock' => 0,
         ]);
 
-        $this->assertFalse($variante->estAchetable());
+        $this->assertTrue($variante->disponible);
+        $this->assertTrue($variante->estAchetable());
     }
 
     public function test_taillesAchetables_dune_collection_sur_demande_ignore_le_stock(): void
@@ -215,13 +218,14 @@ class DisponibiliteAchatTest extends TestCase
         $this->assertSame(0, $article->variantes()->where('disponible', true)->count());
     }
 
-    public function test_creer_un_article_sur_demande_ne_genere_aucune_variante(): void
+    public function test_creer_un_article_sur_demande_genere_toutes_les_variantes_deja_disponibles(): void
     {
         Taille::create(['libelle' => 'M']);
         Couleur::create(['nom' => 'Blanc']);
 
         $article = $this->articleSurDemande();
 
-        $this->assertSame(0, $article->variantes()->count());
+        $this->assertSame(1, $article->variantes()->count());
+        $this->assertSame(1, $article->variantes()->where('disponible', true)->count());
     }
 }

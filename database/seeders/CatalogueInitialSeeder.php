@@ -3,10 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Article;
-use App\Models\ArticleVariante;
 use App\Models\CollectionCatalogue;
-use App\Models\Couleur;
-use App\Models\Taille;
 use App\Models\TypeArticle;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
@@ -27,12 +24,13 @@ use Illuminate\Support\Str;
  * - Trois noms tronqués dans le relevé WhatsApp (lignes 30, 33, 37)
  *   complétés avec la gérante.
  *
- * Depuis la restructuration stock/disponibilité, `disponible` est dérivé du
- * stock pour toute collection qui le gère (Article::genererVariantesInitiales(),
- * déclenché automatiquement à la création de chaque article) : ces articles
- * démarrent donc sans aucune variante disponible, jusqu'à ce que la gérante
- * enregistre un vrai stock dans « Mon stock ». Seule My verse (fabriquée à
- * la demande, stock non géré) garde ici sa grille cochée manuellement.
+ * Depuis la restructuration stock/disponibilité, chaque article génère
+ * automatiquement toute sa grille taille×couleur à sa création
+ * (Article::genererVariantesInitiales()), `disponible` étant ensuite
+ * entièrement dérivé (ArticleVariante::booted()) : présence de stock pour
+ * une collection qui le gère (donc épuisé jusqu'à la première entrée dans
+ * « Mon stock »), toujours vrai pour une collection fabriquée à la demande
+ * (My verse). Ce seeder n'a donc plus rien à faire lui-même sur ce plan.
  */
 class CatalogueInitialSeeder extends Seeder
 {
@@ -92,14 +90,11 @@ class CatalogueInitialSeeder extends Seeder
             ['nom' => 'Tote bag RÉVOLUTION', 'prix' => 6000, 'type' => 'tote-bag', 'collection' => 'christ-au-centre'],
         ];
 
-        $tailles = Taille::query()->actives()->orderBy('ordre')->get();
-        $couleurs = Couleur::query()->actives()->orderBy('ordre')->get();
-
         foreach ($articles as $ordre => $donnees) {
             $collection = CollectionCatalogue::where('slug', $donnees['collection'])->firstOrFail();
             $type = TypeArticle::where('slug', $donnees['type'])->firstOrFail();
 
-            $article = Article::query()->updateOrCreate(
+            Article::query()->updateOrCreate(
                 ['slug' => Str::slug($donnees['nom'])],
                 [
                     'collection_id' => $collection->id,
@@ -110,32 +105,6 @@ class CatalogueInitialSeeder extends Seeder
                     'active' => true,
                 ]
             );
-
-            // Stock géré : Article::genererVariantesInitiales() a déjà créé
-            // toute la grille à la création (disponible en attente de
-            // stock réel). Seule My verse a encore besoin d'être cochée ici.
-            if (! $article->gere_stock) {
-                $this->cocherToutesLesVariantes($article, $type, $tailles, $couleurs);
-            }
-        }
-    }
-
-    /**
-     * @param  \Illuminate\Support\Collection<int, Taille>  $tailles
-     * @param  \Illuminate\Support\Collection<int, Couleur>  $couleurs
-     */
-    private function cocherToutesLesVariantes(Article $article, TypeArticle $type, $tailles, $couleurs): void
-    {
-        $lignesTailles = $type->gere_tailles ? $tailles : collect([null]);
-        $lignesCouleurs = $type->gere_couleurs ? $couleurs : collect([null]);
-
-        foreach ($lignesTailles as $taille) {
-            foreach ($lignesCouleurs as $couleur) {
-                ArticleVariante::query()->updateOrCreate(
-                    ['article_id' => $article->id, 'taille_id' => $taille?->id, 'couleur_id' => $couleur?->id],
-                    ['disponible' => true]
-                );
-            }
         }
     }
 }

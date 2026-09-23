@@ -133,6 +133,10 @@ class ArticleResource extends Resource
                         ]),
 
                     Tab::make('Disponibilité')
+                        // Une collection fabriquée à la demande (ex. My verse)
+                        // n'a rien à déclarer ici : toutes ses combinaisons
+                        // sont toujours disponibles (ArticleVariante::booted()).
+                        ->visible(fn (?Article $record) => ! $record || $record->gere_stock)
                         ->schema([
                             ViewField::make('matrice_disponibilite')
                                 ->label(null)

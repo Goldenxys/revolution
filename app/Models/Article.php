@@ -46,25 +46,25 @@ class Article extends Model
     }
 
     /**
-     * Dès qu'un article rejoint une collection au stock géré, toutes ses
-     * combinaisons taille×couleur existent immédiatement dans « Mon stock »
-     * — plus besoin de les créer au clic dans la grille « Disponibilité »,
-     * qui n'a plus vocation qu'à afficher l'état (dérivé du stock, voir
-     * ArticleVariante::booted()). Les collections fabriquées à la demande
-     * (My verse) gardent leur fonctionnement manuel d'origine.
+     * Dès qu'un article est créé, toutes ses combinaisons taille×couleur
+     * existent immédiatement : dans « Mon stock » pour une collection au
+     * stock géré (prêtes à recevoir du stock, non disponibles tant que
+     * rien n'est enregistré) ; toujours disponibles pour une collection
+     * fabriquée à la demande, ex. My verse (aucune notion de stock ni de
+     * disponibilité à déclarer). Dans les deux cas, plus besoin de créer
+     * quoi que ce soit au clic dans la grille « Disponibilité » — voir
+     * ArticleVariante::booted().
      */
     protected static function booted(): void
     {
         static::created(function (Article $article) {
-            if ($article->gere_stock) {
-                $article->genererVariantesInitiales();
-            }
+            $article->genererVariantesInitiales();
         });
     }
 
     /**
-     * Crée toutes les variantes taille×couleur possibles pour cet article,
-     * sans stock (donc non disponibles tant que rien n'est enregistré).
+     * Crée toutes les variantes taille×couleur possibles pour cet article
+     * (disponible dérivé à la sauvegarde, voir ArticleVariante::booted()).
      * Idempotente (firstOrCreate) : ne duplique jamais une combinaison déjà
      * présente.
      */
