@@ -1,7 +1,7 @@
 <div wire:key="matrice-{{ $article->id }}" class="space-y-4">
 
     @if ($this->epuise)
-        <div class="flex items-start gap-2 rounded-lg border border-danger-300 bg-danger-50 dark:border-danger-700 dark:bg-danger-500/10 px-4 py-3 text-sm text-danger-700 dark:text-danger-300">
+        <div class="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
             @svg('heroicon-o-exclamation-triangle', 'w-5 h-5 shrink-0 mt-0.5')
             <span>Aucune variante n'a de stock enregistré : cet article est actuellement <strong>masqué du site public</strong>. Enregistrez du stock dans <strong>Mon stock</strong> pour le rendre à nouveau visible.</span>
         </div>
@@ -48,7 +48,7 @@
                                 <div title="{{ $coche ? 'En stock' : 'Pas de stock enregistré' }}"
                                      class="w-8 h-8 rounded-md border flex items-center justify-center
                                         {{ $coche
-                                            ? 'bg-success-500 border-success-600'
+                                            ? 'bg-green-500 border-green-600'
                                             : 'bg-gray-100 dark:bg-white/5 border-gray-300 dark:border-gray-600' }}">
                                     @if ($coche)
                                         @svg('heroicon-s-check', 'w-4 h-4 text-white')
