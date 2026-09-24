@@ -130,24 +130,86 @@ class StockEtTableauDeBordTest extends TestCase
     }
 
     /**
-     * Supprimer le stock repasse la variante à « non suivi » (NULL) —
-     * ArticleVariante::booted() en déduit alors disponible=false tout seul,
-     * exactement comme si aucun stock n'avait jamais été enregistré.
+     * Supprimer le stock retire carrément la ligne de désignation (taille,
+     * couleur, stock) — pas seulement le stock remis à zéro.
      */
-    public function test_supprimer_le_stock_repasse_la_variante_a_non_suivie(): void
+    public function test_supprimer_le_stock_supprime_la_ligne_de_designation(): void
     {
         $gerante = User::factory()->create();
         $collection = CollectionCatalogue::create(['nom' => 'C', 'slug' => 'c']);
-        $type = TypeArticle::create(['nom' => 'T', 'slug' => 't', 'gere_tailles' => false, 'gere_couleurs' => false]);
+        $type = TypeArticle::create(['nom' => 'T', 'slug' => 't', 'gere_tailles' => true, 'gere_couleurs' => true]);
         $article = Article::create(['collection_id' => $collection->id, 'type_article_id' => $type->id, 'nom' => 'Art', 'slug' => 'art', 'prix' => 7000]);
-        $variante = ArticleVariante::create(['article_id' => $article->id, 'disponible' => true, 'stock' => 10]);
+        $taille = Taille::create(['libelle' => 'M']);
+        $couleur = Couleur::create(['nom' => 'Noir']);
+        $variante = ArticleVariante::create(['article_id' => $article->id, 'taille_id' => $taille->id, 'couleur_id' => $couleur->id, 'disponible' => true, 'stock' => 10]);
 
         Livewire::actingAs($gerante)->test(ListStock::class)
             ->callTableBulkAction('supprimer_stock', [$variante]);
 
-        $variante->refresh();
-        $this->assertNull($variante->stock);
-        $this->assertFalse($variante->disponible);
+        $this->assertModelMissing($variante);
+        // Le référentiel taille/couleur, lui, n'est pas touché (restrictOnDelete).
+        $this->assertModelExists($taille);
+        $this->assertModelExists($couleur);
+    }
+
+    /**
+     * L'entrée de stock saisit taille/couleur/quantité indépendamment,
+     * plutôt que de choisir dans une liste de variantes déjà existantes —
+     * elle doit donc pouvoir RECRÉER une combinaison précédemment supprimée.
+     */
+    public function test_lentree_de_stock_recree_une_designation_precedemment_supprimee(): void
+    {
+        $gerante = User::factory()->create();
+        $collection = CollectionCatalogue::create(['nom' => 'C', 'slug' => 'c']);
+        $type = TypeArticle::create(['nom' => 'T', 'slug' => 't', 'gere_tailles' => true, 'gere_couleurs' => true]);
+        $article = Article::create(['collection_id' => $collection->id, 'type_article_id' => $type->id, 'nom' => 'Art', 'slug' => 'art', 'prix' => 7000]);
+        $taille = Taille::create(['libelle' => 'M']);
+        $couleur = Couleur::create(['nom' => 'Noir']);
+
+        // La désignation n'existe plus du tout (supprimée précédemment).
+        $this->assertSame(0, ArticleVariante::where('article_id', $article->id)->count());
+
+        Livewire::actingAs($gerante)->test(ListStock::class)
+            ->callTableAction('entree_stock', data: [
+                'article_id' => $article->id,
+                'taille_id' => $taille->id,
+                'couleur_id' => $couleur->id,
+                'quantite' => 15,
+            ])
+            ->assertHasNoActionErrors();
+
+        $variante = ArticleVariante::where('article_id', $article->id)
+            ->where('taille_id', $taille->id)->where('couleur_id', $couleur->id)->first();
+
+        $this->assertNotNull($variante);
+        $this->assertSame(15, $variante->stock);
+        $this->assertTrue($variante->disponible);
+    }
+
+    /**
+     * Si la ligne existe encore, l'entrée de stock ajoute simplement à la
+     * quantité déjà présente (au lieu d'écraser).
+     */
+    public function test_lentree_de_stock_ajoute_au_stock_dune_designation_existante(): void
+    {
+        $gerante = User::factory()->create();
+        $collection = CollectionCatalogue::create(['nom' => 'C', 'slug' => 'c']);
+        $type = TypeArticle::create(['nom' => 'T', 'slug' => 't', 'gere_tailles' => true, 'gere_couleurs' => true]);
+        $article = Article::create(['collection_id' => $collection->id, 'type_article_id' => $type->id, 'nom' => 'Art', 'slug' => 'art', 'prix' => 7000]);
+        $taille = Taille::create(['libelle' => 'M']);
+        $couleur = Couleur::create(['nom' => 'Noir']);
+        $variante = ArticleVariante::create(['article_id' => $article->id, 'taille_id' => $taille->id, 'couleur_id' => $couleur->id, 'disponible' => true, 'stock' => 5]);
+
+        Livewire::actingAs($gerante)->test(ListStock::class)
+            ->callTableAction('entree_stock', data: [
+                'article_id' => $article->id,
+                'taille_id' => $taille->id,
+                'couleur_id' => $couleur->id,
+                'quantite' => 3,
+            ]);
+
+        $this->assertSame(8, $variante->refresh()->stock);
+        $this->assertSame(1, ArticleVariante::where('article_id', $article->id)->count());
     }
 
     /**

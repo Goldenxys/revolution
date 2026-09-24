@@ -176,29 +176,41 @@ class StockResource extends Resource
                     })
                     ->deselectRecordsAfterCompletion(),
 
-                // Repasse le stock à « non suivi » (NULL) — ArticleVariante::booted()
-                // en déduit alors disponible=false automatiquement (aucune
-                // logique à dupliquer ici) : la variante repasse « non suivi »
-                // dans l'État, décochée dans « En vente », et disparaît des
-                // choix taille/couleur achetables (compositeur, formulaire
-                // public) jusqu'à un nouvel enregistrement de stock.
+                // Supprime carrément la ligne de désignation (taille, couleur,
+                // stock — toute la variante) : pas seulement le stock remis à
+                // zéro. La combinaison disparaît de « Mon stock », des choix
+                // achetables (compositeur, recherche publique) et de la
+                // grille de disponibilité (qui affiche « décoché » pour toute
+                // case sans ligne — voir MatriceDisponibiliteArticle). Une
+                // commande passée déjà comptée n'est pas affectée : Commande
+                // retrouve/décrémente ses variantes via $variante?->, jamais
+                // une FK vers cette ligne.
                 Tables\Actions\BulkAction::make('supprimer_stock')
                     ->label('Supprimer le stock')
                     ->icon('heroicon-o-trash')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->modalHeading('Supprimer le stock ?')
-                    ->modalDescription('Ces variantes repassent à « non suivi » et ne seront plus en vente tant qu\'un nouveau stock n\'est pas enregistré.')
+                    ->modalHeading('Supprimer cette désignation de stock ?')
+                    ->modalDescription('La ligne (taille, couleur et stock) sera définitivement supprimée. Cette combinaison ne sera plus en vente tant qu\'une nouvelle entrée de stock n\'est pas enregistrée pour elle.')
                     ->modalSubmitActionLabel('Oui, supprimer')
                     ->action(function ($records) {
+                        $nombre = $records->count();
+
                         foreach ($records as $variante) {
-                            $variante->update(['stock' => null]);
+                            $variante->delete();
                         }
-                        Notification::make()->title('Stock supprimé sur '.$records->count().' variante(s).')->success()->send();
+
+                        Notification::make()->title('Désignation supprimée sur '.$nombre.' variante(s).')->success()->send();
                     })
                     ->deselectRecordsAfterCompletion(),
             ])
             ->headerActions([
+                // Taille/couleur saisies librement plutôt que choisies dans
+                // une liste de variantes déjà existantes : depuis que
+                // « Supprimer le stock » retire carrément la ligne, il faut
+                // pouvoir recréer une combinaison qui n'existe plus (ou en
+                // créer une nouvelle) — firstOrNew() ci-dessous retrouve la
+                // ligne si elle existe encore, sinon en crée une neuve.
                 Tables\Actions\Action::make('entree_stock')
                     ->label('Entrée de stock')
                     ->icon('heroicon-o-inbox-arrow-down')
@@ -215,30 +227,37 @@ class StockResource extends Resource
                             ->required()
                             ->live(),
 
-                        Select::make('variantes')
-                            ->label('Variantes concernées')
-                            ->multiple()
-                            ->options(fn (Get $get) => ArticleVariante::query()
-                                ->where('article_id', $get('article_id'))
-                                ->with(['taille', 'couleur'])
-                                ->get()
-                                ->mapWithKeys(fn (ArticleVariante $v) => [
-                                    $v->id => collect([$v->taille?->libelle, $v->couleur?->nom])->filter()->implode(' / ') ?: 'Taille unique',
-                                ]))
-                            ->required()
-                            ->visible(fn (Get $get) => filled($get('article_id'))),
+                        Select::make('taille_id')
+                            ->label('Taille')
+                            ->options(fn () => Taille::query()->actives()->orderBy('ordre')->pluck('libelle', 'id'))
+                            ->native(false)
+                            ->visible(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_tailles)
+                            ->required(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_tailles),
 
-                        TextInput::make('quantite')->label('Quantité reçue par variante')->numeric()->minValue(1)->required(),
+                        Select::make('couleur_id')
+                            ->label('Couleur')
+                            ->options(fn () => Couleur::query()->actives()->orderBy('ordre')->pluck('nom', 'id'))
+                            ->native(false)
+                            ->visible(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_couleurs)
+                            ->required(fn (Get $get) => (bool) Article::find($get('article_id'))?->gere_couleurs),
+
+                        TextInput::make('quantite')->label('Quantité reçue')->numeric()->minValue(1)->required(),
                     ])
                     ->action(function (array $data) {
-                        $variantes = ArticleVariante::query()->whereIn('id', $data['variantes'])->get();
-                        foreach ($variantes as $v) {
-                            // `disponible` n'est plus renseigné ici : la
-                            // mise à jour du stock la dérive automatiquement
-                            // (ArticleVariante::booted()).
-                            $v->update(['stock' => (int) ($v->stock ?? 0) + (int) $data['quantite']]);
-                        }
-                        Notification::make()->title('Entrée enregistrée sur '.$variantes->count().' variante(s).')->success()->send();
+                        $article = Article::find($data['article_id']);
+
+                        $variante = ArticleVariante::firstOrNew([
+                            'article_id' => $article->id,
+                            'taille_id' => $article->gere_tailles ? $data['taille_id'] : null,
+                            'couleur_id' => $article->gere_couleurs ? $data['couleur_id'] : null,
+                        ]);
+
+                        // `disponible` n'est pas renseigné ici : la sauvegarde
+                        // la dérive automatiquement (ArticleVariante::booted()).
+                        $variante->stock = (int) ($variante->stock ?? 0) + (int) $data['quantite'];
+                        $variante->save();
+
+                        Notification::make()->title('Entrée de stock enregistrée.')->success()->send();
                     }),
             ]);
     }
