@@ -3,10 +3,12 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\StockResource\Pages;
+use App\Mail\StockReinitialise;
 use App\Models\Article;
 use App\Models\ArticleVariante;
 use App\Models\CollectionCatalogue;
 use App\Models\Couleur;
+use App\Models\Parametre;
 use App\Models\Taille;
 use App\Models\TypeArticle;
 use Filament\Forms\Components\Select;
@@ -22,6 +24,7 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * « Mon stock » (V2 §8.2, restructuré) — conçu pour le téléphone, consulté
@@ -258,6 +261,57 @@ class StockResource extends Resource
                         $variante->save();
 
                         Notification::make()->title('Entrée de stock enregistrée.')->success()->send();
+                    }),
+
+                // Même portée que le tableau lui-même (whereDoesntHave gere_stock
+                // false, ligne ~74) : My verse, fabriqué à la demande, n'a pas de
+                // stock à réinitialiser. Snapshot du détail AVANT suppression —
+                // c'est la seule trace qui subsiste, elle part par e-mail.
+                Tables\Actions\Action::make('reinitialiser_stock_complet')
+                    ->label('Réinitialiser le stock complet')
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Réinitialiser tout le stock ?')
+                    ->modalDescription('Toutes les désignations de stock (taille, couleur, quantité) de tous les articles seront supprimées d\'un coup. Cette action est irréversible — un e-mail récapitulatif partira avec le détail de ce qui a été supprimé.')
+                    ->modalSubmitActionLabel('Oui, tout réinitialiser')
+                    ->action(function () {
+                        $variantes = ArticleVariante::query()
+                            ->whereDoesntHave('article.collection', fn (Builder $qc) => $qc->where('gere_stock', false))
+                            ->with(['article', 'taille', 'couleur'])
+                            ->get();
+
+                        if ($variantes->isEmpty()) {
+                            Notification::make()->title('Aucune désignation de stock à réinitialiser.')->warning()->send();
+
+                            return;
+                        }
+
+                        $articlesDetail = $variantes
+                            ->groupBy(fn (ArticleVariante $v) => $v->article?->nom ?? 'Article supprimé')
+                            ->map(fn ($lignes, $nom) => [
+                                'nom' => $nom,
+                                'lignes' => $lignes->map(fn (ArticleVariante $v) => [
+                                    'taille' => $v->taille?->libelle,
+                                    'couleur' => $v->couleur?->nom,
+                                    'stock' => $v->stock,
+                                ])->values(),
+                            ])
+                            ->values();
+
+                        $nombreDesignations = $variantes->count();
+                        $totalPieces = (int) $variantes->sum('stock');
+
+                        ArticleVariante::query()->whereIn('id', $variantes->pluck('id'))->delete();
+
+                        Mail::to(Parametre::emailReception())
+                            ->queue(new StockReinitialise($articlesDetail, $nombreDesignations, $totalPieces));
+
+                        Notification::make()
+                            ->title('Stock complet réinitialisé.')
+                            ->body($nombreDesignations.' désignation(s) supprimée(s). Un e-mail récapitulatif a été envoyé.')
+                            ->success()
+                            ->send();
                     }),
             ]);
     }

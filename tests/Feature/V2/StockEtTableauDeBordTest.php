@@ -4,6 +4,7 @@ namespace Tests\Feature\V2;
 
 use App\Filament\Pages\TableauDeBord;
 use App\Filament\Resources\StockResource\Pages\ListStock;
+use App\Mail\StockReinitialise;
 use App\Models\Article;
 use App\Models\ArticleVariante;
 use App\Models\Client;
@@ -210,6 +211,56 @@ class StockEtTableauDeBordTest extends TestCase
 
         $this->assertSame(8, $variante->refresh()->stock);
         $this->assertSame(1, ArticleVariante::where('article_id', $article->id)->count());
+    }
+
+    /**
+     * Réinitialiser le stock complet supprime toutes les désignations des
+     * collections au stock géré (My verse, fabriqué à la demande, n'est pas
+     * touché — même périmètre que le tableau lui-même) et envoie un e-mail
+     * récapitulatif à la gérante avec le détail de ce qui a été supprimé.
+     */
+    public function test_reinitialiser_le_stock_complet_supprime_tout_sauf_my_verse_et_envoie_un_email(): void
+    {
+        Mail::fake();
+        $gerante = User::factory()->create();
+
+        $collectionStockee = CollectionCatalogue::create(['nom' => 'C', 'slug' => 'c']);
+        $myVerse = CollectionCatalogue::create(['nom' => 'My verse', 'slug' => 'my_verse', 'gere_stock' => false]);
+        $type = TypeArticle::create(['nom' => 'T', 'slug' => 't', 'gere_tailles' => true, 'gere_couleurs' => true]);
+
+        $article = Article::create(['collection_id' => $collectionStockee->id, 'type_article_id' => $type->id, 'nom' => 'Art', 'slug' => 'art', 'prix' => 7000]);
+        $articleMyVerse = Article::create(['collection_id' => $myVerse->id, 'type_article_id' => $type->id, 'nom' => 'Tee my verse', 'slug' => 'tee-my-verse', 'prix' => 7000]);
+
+        $taille = Taille::create(['libelle' => 'M']);
+        $couleur = Couleur::create(['nom' => 'Noir']);
+
+        $v1 = ArticleVariante::create(['article_id' => $article->id, 'taille_id' => $taille->id, 'couleur_id' => $couleur->id, 'disponible' => true, 'stock' => 5]);
+        $v2 = ArticleVariante::create(['article_id' => $article->id, 'taille_id' => null, 'couleur_id' => null, 'disponible' => true, 'stock' => 2]);
+        $vMyVerse = ArticleVariante::create(['article_id' => $articleMyVerse->id, 'taille_id' => $taille->id, 'couleur_id' => $couleur->id, 'disponible' => true, 'stock' => null]);
+
+        Livewire::actingAs($gerante)->test(ListStock::class)
+            ->callTableAction('reinitialiser_stock_complet');
+
+        $this->assertModelMissing($v1);
+        $this->assertModelMissing($v2);
+        $this->assertModelExists($vMyVerse);
+
+        Mail::assertQueued(StockReinitialise::class, function (StockReinitialise $mail) {
+            return $mail->nombreDesignations === 2
+                && $mail->totalPieces === 7
+                && $mail->articles->firstWhere('nom', 'Art')['lignes']->count() === 2;
+        });
+    }
+
+    public function test_reinitialiser_le_stock_naenvoie_rien_si_aucune_designation(): void
+    {
+        Mail::fake();
+        $gerante = User::factory()->create();
+
+        Livewire::actingAs($gerante)->test(ListStock::class)
+            ->callTableAction('reinitialiser_stock_complet');
+
+        Mail::assertNothingQueued();
     }
 
     /**
