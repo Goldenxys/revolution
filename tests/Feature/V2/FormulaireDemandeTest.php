@@ -135,7 +135,7 @@ class FormulaireDemandeTest extends TestCase
             ->assertOk()
             ->assertSee('Carte de fidélité')
             ->assertSee($commande->client->numero_client)
-            ->assertSee('comptée dès sa validation');
+            ->assertSee('comptée une fois livrée');
     }
 
     /**

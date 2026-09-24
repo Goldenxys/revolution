@@ -5,15 +5,15 @@
     $messagePartage = "Je viens de commander chez RÉVOLUTION — même ta garde-robe intéresse JÉSUS ! Découvrez la marque : ".url('/');
     $lienWhatsapp = 'https://wa.me/?text='.rawurlencode($messagePartage);
 
-    // La carte AFFICHÉE À L'ÉCRAN annonce le palier issu des commandes
-    // VALIDÉES — honnête, la demande qui vient d'être déposée ne compte pas
+    // La carte AFFICHÉE À L'ÉCRAN annonce le palier issu des commandes déjà
+    // LIVRÉES — honnête, la demande qui vient d'être déposée ne compte pas
     // encore (voir la mention en bas de carte).
     $nbValidees = $client->nb_commandes ?? 0;
     $palier = $nbValidees > 0 ? ((($nbValidees - 1) % 8) + 1) : 0;
     $avantage = \App\Models\Client::avantagePourNumero($nbValidees);
 
     // La carte TÉLÉCHARGÉE, elle, compte la demande tout juste déposée comme
-    // si elle était déjà validée : c'est le geste de clôture voulu par la
+    // si elle était déjà livrée : c'est le geste de clôture voulu par la
     // gérante — la cliente repart avec quelque chose de concret en main.
     $nbProjete = $nbValidees + 1;
     $palierProjete = (($nbProjete - 1) % 8) + 1;
@@ -76,7 +76,7 @@
             </p>
 
             <p class="text-center text-[13px] text-texte-secondaire mt-5 border-t border-filet pt-4">
-                Votre commande en cours sera comptée dès sa validation par la gérante.
+                Votre commande en cours sera comptée une fois livrée.
             </p>
         </div>
 
