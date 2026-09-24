@@ -5,34 +5,41 @@ namespace Tests\Feature\Catalogue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+/**
+ * L'accueil est repassé sur l'ancien formulaire libre (App\Support\CarteFidelite) :
+ * c'est le seul parcours où une commande est finale dès le clic du client,
+ * condition nécessaire pour délivrer la carte de fidélité immédiatement.
+ */
 class BasculeTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_laccueil_pointe_vers_le_parcours_de_demande_v2(): void
+    public function test_laccueil_pointe_vers_lancien_formulaire_libre(): void
     {
         $reponse = $this->get(route('accueil'));
 
         $reponse->assertOk();
-        $reponse->assertSee(route('commande.demande.creer'), false);
+        $reponse->assertSee(route('commande.my-verse'), false);
+        $reponse->assertSee(route('commande.autre'), false);
     }
 
-    public function test_la_page_404_pointe_vers_le_parcours_de_demande_v2(): void
+    public function test_la_page_404_pointe_vers_lancien_formulaire_libre(): void
     {
         $reponse = $this->get('/cette-page-nexiste-pas');
 
         $reponse->assertNotFound();
-        $reponse->assertSee(route('commande.demande.creer'), false);
+        $reponse->assertSee(route('commande.my-verse'), false);
     }
 
     /**
-     * Filet de sécurité de la bascule (§11, Phase 6) : les anciens parcours
-     * restent en ligne deux semaines même si l'accueil ne les lie plus.
+     * Le parcours « demande » V2 reste en ligne (compositeur, stock lié au
+     * catalogue) pour les demandes déjà en cours — simplement plus lié
+     * depuis l'accueil.
      */
-    public function test_les_anciens_parcours_restent_accessibles_apres_la_bascule(): void
+    public function test_le_parcours_demande_v2_reste_accessible(): void
     {
-        $this->get(route('commande.my-verse'))->assertOk();
-        $this->get(route('commande.autre'))->assertOk();
+        $this->get(route('commande.demande.creer'))->assertOk();
+        $this->get(route('commande.demande.autre'))->assertOk();
         $this->get(route('commande.catalogue.creer'))->assertOk();
     }
 }

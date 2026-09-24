@@ -20,18 +20,18 @@
             <p>Vous bénéficiez ainsi de votre carte de fidélité RÉVOLUTION et des avantages réservés à notre communauté.</p>
         </div>
 
-        {{-- Deux parcours V2. On a d'abord échangé sur WhatsApp ; le site
-             enregistre proprement ce qui a été convenu, la gérante valide
-             ensuite. --}}
+        {{-- Formulaire libre : la commande est finale dès l'envoi, la carte
+             de fidélité (App\Support\CarteFidelite) est immédiatement
+             disponible sur la page de confirmation qui suit. --}}
         <div class="space-y-4 sm:space-y-5 mb-12 sm:mb-16">
-            <a href="{{ route('commande.demande.creer') }}"
+            <a href="{{ route('commande.my-verse') }}"
                class="group block border border-filet border-l-4 border-l-rouille bg-carte px-5 py-6 sm:px-6 sm:py-7 transition hover:border-l-[6px] hover:bg-creme active:scale-[0.99]">
                 <p class="text-xs uppercase tracking-[0.18em] text-or font-semibold mb-2">My Verse</p>
                 <h2 class="text-xl sm:text-2xl font-semibold text-encre mb-1 tracking-tight">Je passe ma commande My Verse</h2>
                 <p class="text-sm text-texte-secondaire">Votre tee-shirt, votre verset, écrit par vous.</p>
             </a>
 
-            <a href="{{ route('commande.demande.autre') }}"
+            <a href="{{ route('commande.autre') }}"
                class="group block border border-filet border-l-4 border-l-rouille bg-carte px-5 py-6 sm:px-6 sm:py-7 transition hover:border-l-[6px] hover:bg-creme active:scale-[0.99]">
                 <p class="text-xs uppercase tracking-[0.18em] text-or font-semibold mb-2">Autre collection</p>
                 <h2 class="text-xl sm:text-2xl font-semibold text-encre mb-1 tracking-tight">Je passe ma commande pour une autre collection</h2>

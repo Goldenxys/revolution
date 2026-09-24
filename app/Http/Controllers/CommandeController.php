@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ResoutClientEtNotifie;
 use App\Http\Requests\StoreCommandeRequest;
 use App\Models\Commande;
+use App\Support\CarteFidelite;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -56,16 +57,22 @@ class CommandeController extends Controller
         $this->envoyerMailCommande($commande);
         $this->notifierNouvelleCommande($commande);
 
+        // Cette commande est finale dès ce clic (formulaire libre) : si son
+        // rang tombe sur un palier, la carte doit être prête pour la page
+        // de confirmation qui suit immédiatement.
+        CarteFidelite::genererSiPalierAtteint($commande, $commande->client);
+
         return redirect()->route('commande.confirmation', $commande->reference);
     }
 
     public function show(string $reference): View
     {
-        $commande = Commande::with('client')->where('reference', $reference)->firstOrFail();
+        $commande = Commande::with(['client', 'reductionFidelite'])->where('reference', $reference)->firstOrFail();
 
         return view('commande.confirmation', [
             'commande' => $commande,
             'client' => $commande->client,
+            'reduction' => $commande->reductionFidelite,
         ]);
     }
 }

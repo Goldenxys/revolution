@@ -36,6 +36,11 @@ class Client extends Model
         return $this->hasMany(Commande::class);
     }
 
+    public function reductionsFidelite(): HasMany
+    {
+        return $this->hasMany(ReductionFidelite::class)->latest('numero_commande');
+    }
+
     /**
      * Numéro client stable, affiché sur la carte de fidélité, attribué dès
      * la première demande déposée (avant même toute validation). Basé sur

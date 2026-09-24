@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\ExportController;
 use App\Http\Controllers\Admin\NotificationSonController;
+use App\Http\Controllers\CarteFideliteController;
 use App\Http\Controllers\CatalogueController;
 use App\Http\Controllers\ClientReconnaissanceController;
 use App\Http\Controllers\CommandeCatalogueController;
@@ -56,6 +57,12 @@ Route::get('/commande/{reference}', [CommandeController::class, 'show'])
 Route::get('/recu/{token}', [RecuController::class, 'afficher'])
     ->middleware('throttle:30,1')
     ->name('recu.afficher');
+
+// Téléchargement de la carte de fidélité — même principe que le reçu :
+// lien porté par un jeton, jamais un id devinable.
+Route::get('/fidelite/{token}', [CarteFideliteController::class, 'telecharger'])
+    ->middleware('throttle:30,1')
+    ->name('fidelite.telecharger');
 
 // Reconnaissance client en direct (formulaire)
 Route::get('/client/reconnaissance', ClientReconnaissanceController::class)
