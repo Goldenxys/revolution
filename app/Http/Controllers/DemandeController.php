@@ -165,7 +165,10 @@ class DemandeController extends Controller
         return response($png, 200, [
             'Content-Type' => 'image/png',
             'Content-Disposition' => 'inline; filename="carte-fidelite-revolution.png"',
-            'Cache-Control' => 'private, max-age=300',
+            // no-transform : empêche un CDN/proxy intermédiaire de
+            // recompresser/redimensionner le PNG — la carte doit rester au
+            // format exact du gabarit (2480×3508, A4 300 dpi, SPECS.md).
+            'Cache-Control' => 'private, max-age=300, no-transform',
             'X-Robots-Tag' => 'noindex, nofollow',
         ]);
     }

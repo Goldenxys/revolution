@@ -75,7 +75,7 @@ class CarteFideliteTest extends TestCase
         $commande = $this->creerDemande(1);
 
         $this->get(route('commande.demande.carte', $commande->reference))
-            ->assertHeader('Cache-Control', 'max-age=300, private');
+            ->assertHeader('Cache-Control', 'max-age=300, no-transform, private');
     }
 
     public function test_la_carte_png_est_introuvable_pour_une_reference_inconnue(): void
