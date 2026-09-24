@@ -10,7 +10,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -132,11 +131,6 @@ class Commande extends Model
     public function journal(): HasMany
     {
         return $this->hasMany(CommandeJournal::class);
-    }
-
-    public function reductionFidelite(): HasOne
-    {
-        return $this->hasOne(ReductionFidelite::class);
     }
 
     public function validateur(): BelongsTo

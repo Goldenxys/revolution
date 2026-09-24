@@ -3,7 +3,6 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ClientResource\Pages;
-use App\Filament\Resources\ClientResource\RelationManagers;
 use App\Models\Client;
 use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
@@ -128,13 +127,6 @@ class ClientResource extends Resource
         return [
             'index' => Pages\ListClients::route('/'),
             'view' => Pages\ViewClient::route('/{record}'),
-        ];
-    }
-
-    public static function getRelations(): array
-    {
-        return [
-            RelationManagers\ReductionsFideliteRelationManager::class,
         ];
     }
 }

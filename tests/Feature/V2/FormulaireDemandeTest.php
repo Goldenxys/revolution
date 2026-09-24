@@ -21,15 +21,11 @@ class FormulaireDemandeTest extends TestCase
         $this->get(route('commande.demande.autre'))->assertOk()->assertSee('Je passe ma commande');
     }
 
-    /**
-     * L'accueil ne lie plus ce parcours (repassé sur l'ancien formulaire
-     * libre, voir tests/Feature/Catalogue/BasculeTest.php) — les deux pages
-     * restent accessibles par URL directe pour les demandes déjà en cours.
-     */
-    public function test_le_parcours_demande_reste_accessible_par_url_directe(): void
+    public function test_l_accueil_propose_les_deux_boutons(): void
     {
-        $this->get(route('commande.demande.creer'))->assertOk();
-        $this->get(route('commande.demande.autre'))->assertOk();
+        $this->get(route('accueil'))
+            ->assertSee(route('commande.demande.creer'), false)
+            ->assertSee(route('commande.demande.autre'), false);
     }
 
     public function test_une_demande_my_verse_enregistre_plusieurs_versets(): void
