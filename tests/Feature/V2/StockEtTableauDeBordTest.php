@@ -9,6 +9,8 @@ use App\Models\ArticleVariante;
 use App\Models\Client;
 use App\Models\CollectionCatalogue;
 use App\Models\Commande;
+use App\Models\Couleur;
+use App\Models\Taille;
 use App\Models\TypeArticle;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -114,9 +116,9 @@ class StockEtTableauDeBordTest extends TestCase
         $type = TypeArticle::create(['nom' => 'T', 'slug' => 't', 'gere_tailles' => true, 'gere_couleurs' => true]);
         $article = Article::create(['collection_id' => $collection->id, 'type_article_id' => $type->id, 'nom' => 'Art', 'slug' => 'art', 'prix' => 7000]);
 
-        $xl = \App\Models\Taille::create(['libelle' => 'XL']);
-        $m = \App\Models\Taille::create(['libelle' => 'M']);
-        $noir = \App\Models\Couleur::create(['nom' => 'Noir']);
+        $xl = Taille::create(['libelle' => 'XL']);
+        $m = Taille::create(['libelle' => 'M']);
+        $noir = Couleur::create(['nom' => 'Noir']);
 
         $varianteXl = ArticleVariante::create(['article_id' => $article->id, 'taille_id' => $xl->id, 'couleur_id' => $noir->id, 'disponible' => true, 'stock' => 5]);
         $varianteM = ArticleVariante::create(['article_id' => $article->id, 'taille_id' => $m->id, 'couleur_id' => $noir->id, 'disponible' => true, 'stock' => 5]);
@@ -125,6 +127,27 @@ class StockEtTableauDeBordTest extends TestCase
             ->filterTable('taille_id', $xl->id)
             ->assertCanSeeTableRecords([$varianteXl])
             ->assertCanNotSeeTableRecords([$varianteM]);
+    }
+
+    /**
+     * Supprimer le stock repasse la variante à « non suivi » (NULL) —
+     * ArticleVariante::booted() en déduit alors disponible=false tout seul,
+     * exactement comme si aucun stock n'avait jamais été enregistré.
+     */
+    public function test_supprimer_le_stock_repasse_la_variante_a_non_suivie(): void
+    {
+        $gerante = User::factory()->create();
+        $collection = CollectionCatalogue::create(['nom' => 'C', 'slug' => 'c']);
+        $type = TypeArticle::create(['nom' => 'T', 'slug' => 't', 'gere_tailles' => false, 'gere_couleurs' => false]);
+        $article = Article::create(['collection_id' => $collection->id, 'type_article_id' => $type->id, 'nom' => 'Art', 'slug' => 'art', 'prix' => 7000]);
+        $variante = ArticleVariante::create(['article_id' => $article->id, 'disponible' => true, 'stock' => 10]);
+
+        Livewire::actingAs($gerante)->test(ListStock::class)
+            ->callTableBulkAction('supprimer_stock', [$variante]);
+
+        $variante->refresh();
+        $this->assertNull($variante->stock);
+        $this->assertFalse($variante->disponible);
     }
 
     /**

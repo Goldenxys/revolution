@@ -32,7 +32,6 @@
         {{-- Statut honnête : jamais dupliqué avec le visuel de la carte ci-dessous. --}}
         <div class="text-center mb-6 px-2">
             <p class="text-[13px] text-texte-secondaire">
-                Client·e n° {{ $client->numero_client }} ·
                 {{ $nbValidees }} commande{{ $nbValidees > 1 ? 's' : '' }} validée{{ $nbValidees > 1 ? 's' : '' }}
             </p>
             <p class="text-[13px] text-texte-secondaire mt-1">

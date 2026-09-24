@@ -269,7 +269,6 @@ class FormulaireDemandeTest extends TestCase
         $this->get(route('commande.demande.merci', $commande->reference))
             ->assertOk()
             ->assertSee('Carte de fidélité')
-            ->assertSee($commande->client->numero_client)
             ->assertSee('comptée une fois livrée');
     }
 

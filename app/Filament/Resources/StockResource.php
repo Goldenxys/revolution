@@ -175,6 +175,28 @@ class StockResource extends Resource
                         Notification::make()->title('Stock ajouté sur '.$records->count().' variante(s).')->success()->send();
                     })
                     ->deselectRecordsAfterCompletion(),
+
+                // Repasse le stock à « non suivi » (NULL) — ArticleVariante::booted()
+                // en déduit alors disponible=false automatiquement (aucune
+                // logique à dupliquer ici) : la variante repasse « non suivi »
+                // dans l'État, décochée dans « En vente », et disparaît des
+                // choix taille/couleur achetables (compositeur, formulaire
+                // public) jusqu'à un nouvel enregistrement de stock.
+                Tables\Actions\BulkAction::make('supprimer_stock')
+                    ->label('Supprimer le stock')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Supprimer le stock ?')
+                    ->modalDescription('Ces variantes repassent à « non suivi » et ne seront plus en vente tant qu\'un nouveau stock n\'est pas enregistré.')
+                    ->modalSubmitActionLabel('Oui, supprimer')
+                    ->action(function ($records) {
+                        foreach ($records as $variante) {
+                            $variante->update(['stock' => null]);
+                        }
+                        Notification::make()->title('Stock supprimé sur '.$records->count().' variante(s).')->success()->send();
+                    })
+                    ->deselectRecordsAfterCompletion(),
             ])
             ->headerActions([
                 Tables\Actions\Action::make('entree_stock')
