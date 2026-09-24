@@ -42,6 +42,20 @@ class FormulaireDemandeTest extends TestCase
         return compact('article', 'taille', 'couleur');
     }
 
+    private function creerArticleMyVerse(): Article
+    {
+        $collection = CollectionCatalogue::create(['nom' => 'My verse', 'slug' => 'my_verse']);
+        $type = TypeArticle::create([
+            'nom' => 'Tee-shirt My Verse', 'slug' => 'tee-my-verse-'.uniqid(),
+            'gere_tailles' => true, 'gere_couleurs' => true,
+        ]);
+
+        return Article::create([
+            'collection_id' => $collection->id, 'type_article_id' => $type->id,
+            'nom' => 'Tee-shirt My Verse Modèle 1', 'slug' => 'my-verse-modele-1', 'prix' => 8000,
+        ]);
+    }
+
     public function test_les_deux_pages_se_chargent(): void
     {
         $this->get(route('commande.demande.creer'))->assertOk()->assertSee('Je passe ma commande My Verse');
@@ -161,6 +175,29 @@ class FormulaireDemandeTest extends TestCase
         $this->assertNull($articles[1]['article_id']);
         $this->assertSame('Le pull vu sur Instagram', $articles[1]['nom']);
         $this->assertSame(1, $articles[1]['quantite']);
+    }
+
+    /**
+     * My Verse a son propre formulaire dédié : impossible de le contourner
+     * en soumettant son article_id via le formulaire « Autre collection »
+     * (même si l'affichage JS l'exclut déjà de la recherche, le serveur
+     * doit refuser aussi — champ caché, requête forgée...).
+     */
+    public function test_un_article_my_verse_est_refuse_dans_une_demande_autre_collection(): void
+    {
+        User::factory()->create();
+        $articleMyVerse = $this->creerArticleMyVerse();
+
+        $this->post(route('commande.demande.store'), [
+            'nom' => 'Koffi', 'telephone' => '0102030407',
+            'collection' => 'autre',
+            'articles' => [
+                ['nom' => $articleMyVerse->nom, 'article_id' => $articleMyVerse->id, 'quantite' => 1],
+            ],
+            'commune' => 'Yopougon', 'mode_livraison' => 'livreur',
+        ])->assertSessionHasErrors('articles.0.article_id');
+
+        $this->assertSame(0, Commande::count());
     }
 
     public function test_une_demande_autre_collection_ne_demande_que_les_infos(): void

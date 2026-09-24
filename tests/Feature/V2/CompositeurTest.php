@@ -225,6 +225,49 @@ class CompositeurTest extends TestCase
             });
     }
 
+    /**
+     * La gérante n'a plus qu'un seul endroit où regarder : le formulaire
+     * (déjà prérempli), pas un panneau texte séparé qui doublonnait la même
+     * information. Les précisions de la cliente, elles, restent visibles —
+     * déplacées dans le formulaire plutôt que perdues.
+     */
+    public function test_la_section_sa_demande_a_disparu_et_les_precisions_restent_visibles(): void
+    {
+        $gerante = User::factory()->create();
+        $this->catalogue();
+        [, $commande] = $this->demande();
+
+        Livewire::actingAs($gerante)
+            ->test(ComposerDemande::class, ['record' => $commande->getKey()])
+            ->assertDontSee('Sa demande')
+            ->assertSee('écriture dorée');
+    }
+
+    public function test_la_photo_du_produit_apparait_quand_larticle_a_une_photo(): void
+    {
+        $gerante = User::factory()->create();
+        $cat = $this->catalogue();
+        $cat['article']->update(['photo' => 'articles/couronne.png']);
+
+        $client = Client::create([
+            'cle' => Client::cleDepuisTelephone('0700000012'),
+            'nom' => 'Awa Traoré', 'telephone' => '0700000012',
+            'statut' => 'prospect', 'numero_client' => 'REV-C-0012', 'nb_commandes' => 0,
+        ]);
+        $commande = Commande::create([
+            'client_id' => $client->id,
+            'commune' => 'Cocody', 'frais_livraison' => 1500, 'mode_livraison' => 'livreur',
+            'statut' => 'en_attente', 'collection' => 'autre',
+            'souhaits_client' => ['collection' => 'autre', 'articles' => [
+                ['nom' => $cat['article']->nom, 'article_id' => $cat['article']->id, 'quantite' => 1],
+            ]],
+        ]);
+
+        Livewire::actingAs($gerante)
+            ->test(ComposerDemande::class, ['record' => $commande->getKey()])
+            ->assertSee('articles/couronne.png', false);
+    }
+
     public function test_une_demande_deja_validee_redirige_vers_sa_fiche(): void
     {
         $gerante = User::factory()->create();

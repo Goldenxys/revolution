@@ -155,6 +155,11 @@
                     <legend class="text-sm uppercase tracking-[0.14em] text-texte-secondaire mb-1">Vos articles</legend>
                     <p class="text-[13px] text-texte-secondaire">Cherchez un article de notre catalogue, ou indiquez-en un autre. Ajoutez-en autant que vous voulez commander.</p>
 
+                    @php $erreursArticles = collect($errors->keys())->filter(fn ($cle) => str_starts_with($cle, 'articles.'))->map(fn ($cle) => $errors->first($cle))->unique(); @endphp
+                    @foreach ($erreursArticles as $message)
+                        <p class="text-xs text-rouille">{{ $message }}</p>
+                    @endforeach
+
                     <template x-for="(article, index) in articles" :key="index">
                         <div class="border border-filet bg-carte p-4 space-y-4">
                             <div class="flex items-center justify-between">

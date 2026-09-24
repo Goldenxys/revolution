@@ -104,11 +104,21 @@ export default function commandeDemande(config) {
             }
         },
 
+        /**
+         * My Verse a son propre formulaire dédié (versets + taille/couleur) :
+         * la recherche « Autre collection » ne doit jamais laisser retomber
+         * sur un article My Verse, qui n'a d'ailleurs pas de vrai suivi de
+         * stock (fabriqué à la demande) — le mélanger ici brouillerait ce
+         * que « disponible maintenant » veut dire.
+         */
         async chargerCatalogue() {
             try {
                 const reponse = await fetch(this.urlCatalogue, { headers: { Accept: 'application/json' } });
                 const donnees = await reponse.json();
-                this.catalogueArticles = donnees.articles || [];
+                const collectionMyVerse = (donnees.collections || []).find((c) => c.slug === 'my_verse');
+
+                this.catalogueArticles = (donnees.articles || [])
+                    .filter((article) => article.collection_id !== collectionMyVerse?.id);
             } catch (erreur) {
                 this.catalogueArticles = [];
             }

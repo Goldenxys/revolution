@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Article;
 use App\Models\Client;
 use App\Models\Commande;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
@@ -112,6 +113,23 @@ class StoreDemandeRequest extends FormRequest
                 foreach ((array) $this->input('versets', []) as $i => $verset) {
                     if (blank($verset['reference'] ?? null) && blank($verset['texte'] ?? null)) {
                         $validator->errors()->add("versets.{$i}.texte", 'Indiquez la référence ou le texte de ce verset.');
+                    }
+                }
+            }
+
+            // My Verse a son propre formulaire : un article de cette
+            // collection ne doit jamais pouvoir être rattaché à une demande
+            // « Autre collection » (contournement du champ caché article_id).
+            if ($this->input('collection') === 'autre') {
+                foreach ((array) $this->input('articles', []) as $i => $article) {
+                    $articleId = $article['article_id'] ?? null;
+
+                    if (blank($articleId)) {
+                        continue;
+                    }
+
+                    if (Article::query()->whereKey($articleId)->whereHas('collection', fn ($q) => $q->where('slug', 'my_verse'))->exists()) {
+                        $validator->errors()->add("articles.{$i}.article_id", 'Cet article fait partie de My Verse : utilisez le formulaire My Verse pour le commander.');
                     }
                 }
             }

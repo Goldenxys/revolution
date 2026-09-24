@@ -46,60 +46,6 @@
             </x-filament::section>
 
             <x-filament::section>
-                <x-slot name="heading">Sa demande</x-slot>
-                <x-slot name="description">Ce qu'elle a indiqué — la vente s'est faite dans la conversation.</x-slot>
-
-                @if ($c->estMyVerse())
-                    @php $versets = $c->souhaits_client['versets'] ?? []; @endphp
-                    <p class="text-sm font-medium mb-2">{{ count($versets) }} tee-shirt My Verse — modèle à régler ici</p>
-                    <ol class="space-y-2 text-sm">
-                        @foreach ($versets as $i => $v)
-                            <li class="rounded-lg bg-gray-50 dark:bg-white/5 px-3 py-2">
-                                <span class="text-gray-500">Tee-shirt {{ $i + 1 }} —</span>
-                                <span class="font-medium">{{ $v['reference'] ?: 'verset sans référence' }}</span>
-                                @if (!empty($v['taille_libelle']) || !empty($v['couleur_nom']))
-                                    <span class="text-gray-500"> · {{ collect([$v['taille_libelle'] ?? null, $v['couleur_nom'] ?? null])->filter()->implode(' / ') }}</span>
-                                @endif
-                                @if (!empty($v['texte']))
-                                    <p class="text-gray-600 dark:text-gray-300 mt-1 whitespace-pre-line">{{ $v['texte'] }}</p>
-                                @endif
-                            </li>
-                        @endforeach
-                    </ol>
-                @else
-                    @php $articles = $c->souhaits_client['articles'] ?? []; @endphp
-                    @if (count($articles))
-                        <p class="text-sm font-medium mb-2">{{ count($articles) }} article{{ count($articles) > 1 ? 's' : '' }} demandé{{ count($articles) > 1 ? 's' : '' }}</p>
-                        <ol class="space-y-2 text-sm">
-                            @foreach ($articles as $a)
-                                <li class="rounded-lg bg-gray-50 dark:bg-white/5 px-3 py-2">
-                                    <span class="font-medium">{{ $a['nom'] ?? 'Article sans nom' }}</span>
-                                    <span class="text-gray-500">× {{ $a['quantite'] ?? 1 }}</span>
-                                    @if (!empty($a['taille_libelle']) || !empty($a['couleur_nom']))
-                                        <p class="text-gray-600 dark:text-gray-300 mt-1">
-                                            {{ collect([$a['taille_libelle'] ?? null, $a['couleur_nom'] ?? null])->filter()->implode(' / ') }}
-                                        </p>
-                                    @endif
-                                    @unless (!empty($a['article_id']))
-                                        <p class="text-warning-600 dark:text-warning-400 mt-1 text-xs">Pas encore reconnu dans le catalogue</p>
-                                    @endunless
-                                </li>
-                            @endforeach
-                        </ol>
-                    @else
-                        <p class="text-sm font-medium">Un autre article de la collection</p>
-                        <p class="text-sm text-gray-500 mt-1">Aucun article détaillé — voir les précisions ci-dessous ou reprendre sur WhatsApp.</p>
-                    @endif
-                @endif
-
-                @if ($c->message_client)
-                    <p class="mt-3 pt-3 border-t border-gray-200 dark:border-white/10 text-sm">
-                        <span class="text-gray-500">Précisions :</span> {{ $c->message_client }}
-                    </p>
-                @endif
-            </x-filament::section>
-
-            <x-filament::section>
                 <x-slot name="heading">Livraison choisie</x-slot>
                 <dl class="space-y-2 text-sm">
                     <div class="flex justify-between gap-3">

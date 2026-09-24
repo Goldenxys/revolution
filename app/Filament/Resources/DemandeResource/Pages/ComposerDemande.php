@@ -29,15 +29,18 @@ use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
 
 /**
  * Le compositeur de commande (V2 §5.2, restructuré) — l'écran neuf qui
- * porte tout le travail de la gérante. À gauche (dans la vue) : ce que la
- * cliente a dit, en lecture seule. Ici, le formulaire : les lignes réelles
- * qu'elle compose (taille/couleur limitées à ce qui est réellement en
- * stock), la remise qu'elle ajuste, et le bouton « Valider la commande »
- * qui déclenche Commande::valider() — verrouille la commande et génère le
+ * porte tout le travail de la gérante. À gauche (dans la vue) : l'identité
+ * de la cliente et la livraison choisie, en lecture seule. À droite, le
+ * formulaire : les lignes que la cliente a demandées, déjà préremplies
+ * (article, taille/couleur limitées à ce qui est réellement en stock,
+ * quantité, photo du produit) — elle n'a qu'à vérifier et valider, tout en
+ * gardant la main pour corriger si besoin. Le bouton « Valider la commande »
+ * déclenche Commande::valider() — verrouille la commande et génère le
  * reçu, mais ne compte plus le CA/la fidélité ni ne décrémente le stock :
  * ce fait comptable attend la livraison confirmée (Commande::confirmerLivraison()).
  */
@@ -84,6 +87,14 @@ class ComposerDemande extends Page implements HasForms
                 Section::make('Ce que la gérante décide')
                     ->description('Les prix sont pré-remplis depuis le catalogue et restent modifiables. Seules les tailles/couleurs en stock sont proposées.')
                     ->schema([
+                        Placeholder::make('message_client_info')
+                            ->hiddenLabel()
+                            ->visible(fn () => filled($this->record->message_client))
+                            ->content(fn (): Htmlable => new HtmlString(
+                                '<span class="text-sm"><span class="text-gray-500">Précisions de la cliente : </span>'
+                                .e($this->record->message_client).'</span>'
+                            )),
+
                         Repeater::make('lignes')
                             ->hiddenLabel()
                             ->addActionLabel('Ajouter une ligne')
@@ -182,6 +193,19 @@ class ComposerDemande extends Page implements HasForms
                                     ->label('Modèle')
                                     ->columnSpan(['sm' => 2, 'lg' => 6])
                                     ->visible(fn (Get $get) => filled(Article::find($get('article_id'))?->collection?->modeles_disponibles)),
+
+                                Placeholder::make('photo_produit')
+                                    ->hiddenLabel()
+                                    ->columnSpanFull()
+                                    ->visible(fn (Get $get) => filled(Article::find($get('article_id'))?->photo))
+                                    ->content(function (Get $get): Htmlable {
+                                        $photo = Article::find($get('article_id'))?->photo;
+
+                                        return new HtmlString(
+                                            '<img src="'.e(Storage::disk('public')->url($photo)).'" alt="Photo du produit" '
+                                            .'style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid rgba(0,0,0,.1);">'
+                                        );
+                                    }),
                             ]),
                     ]),
 
