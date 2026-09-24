@@ -1,26 +1,17 @@
 @php
     use App\Support\Francais;
 
-    $paliers = config('revolution.paliers');
     $messagePartage = "Je viens de commander chez RÉVOLUTION — même ta garde-robe intéresse JÉSUS ! Découvrez la marque : ".url('/');
     $lienWhatsapp = 'https://wa.me/?text='.rawurlencode($messagePartage);
 
-    // La carte AFFICHÉE À L'ÉCRAN annonce le palier issu des commandes déjà
-    // LIVRÉES — honnête, la demande qui vient d'être déposée ne compte pas
-    // encore (voir la mention en bas de carte).
+    // Honnête : nombre de commandes réellement validées/livrées. La demande
+    // tout juste déposée ne compte pas encore (voir la mention ci-dessous).
     $nbValidees = $client->nb_commandes ?? 0;
-    $palier = $nbValidees > 0 ? ((($nbValidees - 1) % 8) + 1) : 0;
-    $avantage = \App\Models\Client::avantagePourNumero($nbValidees);
 
-    // La carte TÉLÉCHARGÉE, elle, compte la demande tout juste déposée comme
-    // si elle était déjà livrée : c'est le geste de clôture voulu par la
-    // gérante — la cliente repart avec quelque chose de concret en main.
-    $nbProjete = $nbValidees + 1;
-    $palierProjete = (($nbProjete - 1) % 8) + 1;
-    $avantageProjete = \App\Models\Client::avantagePourNumero($nbProjete);
-    $seuilSuivantProjete = collect(array_keys($paliers))->first(fn ($s) => $s > $palierProjete) ?? array_key_first($paliers);
-    $commandesRestantesProjete = $avantageProjete ? 0 : max(1, $seuilSuivantProjete - $palierProjete);
-    $prochainAvantageProjete = $paliers[$seuilSuivantProjete];
+    // La carte (route commande.demande.carte), elle, compte la demande tout
+    // juste déposée comme si elle était déjà livrée — projection calculée
+    // côté serveur par DemandeController::carte().
+    $urlCarte = route('commande.demande.carte', $commande->reference);
 @endphp
 
 <x-public-layout :titre="'RÉVOLUTION — Commande enregistrée'">
@@ -38,66 +29,25 @@
             </p>
         </div>
 
-        {{-- Carte de fidélité --}}
-        <div class="bg-carte border border-filet shadow-[0_18px_45px_-25px_rgba(23,18,14,0.35)] px-5 py-8 sm:px-8 sm:py-10 mb-8">
-            <img src="{{ asset('img/logo-revolution.png') }}" alt="RÉVOLUTION" class="w-32 sm:w-40 mx-auto mb-6">
-
-            <p class="text-center text-xs uppercase tracking-[0.22em] text-or font-semibold mb-4">Carte de fidélité REVO.</p>
-
-            <p class="text-center text-xl sm:text-2xl font-semibold text-encre uppercase mb-1 tracking-tight text-balance">{{ $client->nom }}</p>
-            <p class="text-center text-[13px] text-texte-secondaire mb-8">Client·e n° {{ $client->numero_client }}</p>
-
-            <div class="flex items-start justify-between gap-1.5 sm:gap-4 mb-8">
-                @foreach ($paliers as $seuil => $pourcentage)
-                    @php $atteint = $palier >= $seuil; @endphp
-                    <div class="flex-1 flex flex-col items-center min-w-0">
-                        <div class="w-12 h-12 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-base sm:text-2xl font-semibold shrink-0
-                            {{ $atteint ? 'bg-rouille text-white' : 'border-2 border-gray-300 text-texte-secondaire' }}">
-                            {{ $seuil }}
-                        </div>
-                        <p class="text-[11px] sm:text-sm text-encre mt-1.5 whitespace-nowrap">−{{ $pourcentage }} %</p>
-                    </div>
-                @endforeach
-            </div>
-
-            <p class="text-center text-[15px] font-medium mb-3">
+        {{-- Statut honnête : jamais dupliqué avec le visuel de la carte ci-dessous. --}}
+        <div class="text-center mb-6 px-2">
+            <p class="text-[13px] text-texte-secondaire">
+                Client·e n° {{ $client->numero_client }} ·
                 {{ $nbValidees }} commande{{ $nbValidees > 1 ? 's' : '' }} validée{{ $nbValidees > 1 ? 's' : '' }}
-                @if ($palier > 0) · palier {{ $palier }}/8 @endif
             </p>
-
-            <p class="text-center text-[14px] text-rouille leading-relaxed max-w-[440px] mx-auto text-pretty">
-                @if ($avantage)
-                    Vous venez de débloquer −{{ $avantage }} % sur votre prochaine commande.
-                @else
-                    @php $prochainSeuil = collect(array_keys($paliers))->first(fn ($s) => $s > $palier) ?? array_key_first($paliers); @endphp
-                    Encore {{ max(1, $prochainSeuil - $palier) }} commande{{ ($prochainSeuil - $palier) > 1 ? 's' : '' }}
-                    et vous passez à −{{ $paliers[$prochainSeuil] }} %.
-                @endif
-            </p>
-
-            <p class="text-center text-[13px] text-texte-secondaire mt-5 border-t border-filet pt-4">
+            <p class="text-[13px] text-texte-secondaire mt-1">
                 Votre commande en cours sera comptée une fois livrée.
             </p>
         </div>
 
-        <div
-            x-data="carteFidelite({
-                nom: @js($client->nom),
-                nbCommandes: {{ $nbProjete }},
-                palier: {{ $palierProjete }},
-                avantage: {{ $avantageProjete ?? 'null' }},
-                prochainAvantage: {{ $prochainAvantageProjete }},
-                commandesRestantes: {{ $commandesRestantesProjete }},
-                paliers: @js($paliers),
-                logoUrl: @js(asset('img/logo-revolution.png')),
-            })"
-            class="space-y-3"
-        >
-            <button type="button" @click="telecharger()" :disabled="telechargementEnCours"
-                    class="w-full bg-rouille text-white py-4 text-sm uppercase tracking-wide font-medium transition hover:bg-rouille/90 disabled:opacity-60 rounded-none">
-                <span x-show="!telechargementEnCours">Télécharger ma carte de fidélité</span>
-                <span x-show="telechargementEnCours" x-cloak>Génération…</span>
-            </button>
+        {{-- Carte de fidélité --}}
+        <div class="space-y-3">
+            <img src="{{ $urlCarte }}" alt="Carte de fidélité RÉVOLUTION" class="w-full border border-filet shadow-[0_18px_45px_-25px_rgba(23,18,14,0.35)] mb-1">
+
+            <a href="{{ $urlCarte }}" download="carte-fidelite-revolution.png"
+               class="block w-full text-center bg-rouille text-white py-4 text-sm uppercase tracking-wide font-medium transition hover:bg-rouille/90 rounded-none">
+                Télécharger ma carte de fidélité
+            </a>
 
             <a href="{{ $lienWhatsapp }}" target="_blank" rel="noopener"
                class="block w-full text-center border border-filet text-encre py-4 text-sm uppercase tracking-wide font-medium transition hover:border-rouille rounded-none">

@@ -167,13 +167,37 @@ class FormulaireDemandeTest extends TestCase
         $response = $this->get(route('commande.demande.merci', $commande->reference));
         $response->assertOk()
             ->assertSee('Télécharger ma carte de fidélité')
-            ->assertSee('carteFidelite(', false)
-            ->assertSee('nbCommandes: 2', false)
-            ->assertSee('palier: 2', false)
-            ->assertSee('avantage: 15', false);
+            ->assertSee(route('commande.demande.carte', $commande->reference), false);
 
         // L'écran, lui, reste honnête : encore 1 commande validée affichée.
         $response->assertSee('1 commande validée');
+    }
+
+    /**
+     * Le nouveau gabarit remplace le canvas partout : le lien vers la carte
+     * doit apparaître même quand cette demande ne fait franchir aucun
+     * palier (route commande.demande.carte sert alors la variante
+     * « progression », jamais un 404 — voir CarteFideliteTest).
+     */
+    public function test_le_lien_de_telechargement_apparait_meme_sans_palier_franchi(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        User::factory()->create();
+
+        // Cliente sans commande antérieure : cette demande serait sa 1ʳᵉ,
+        // aucun palier ne se débloque.
+        $this->post(route('commande.demande.store'), [
+            'nom' => 'Aya Kouassi', 'telephone' => '0102030405',
+            'collection' => 'autre', 'commune' => 'Cocody', 'mode_livraison' => 'livreur',
+        ]);
+
+        $commande = Commande::first();
+
+        $this->get(route('commande.demande.merci', $commande->reference))
+            ->assertOk()
+            ->assertSee('Télécharger ma carte de fidélité')
+            ->assertSee(route('commande.demande.carte', $commande->reference), false);
     }
 
     public function test_une_demande_deja_validee_ne_montre_plus_la_page_merci(): void

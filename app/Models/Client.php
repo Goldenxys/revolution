@@ -114,14 +114,16 @@ class Client extends Model
     }
 
     /**
-     * Pourcentage du prochain palier pair à venir dans le cycle.
+     * Pourcentage du prochain palier pair à venir dans le cycle, pour un
+     * palier donné — factorisé pour être réutilisable sur un palier projeté
+     * (pas seulement celui, réel, de l'attribut $this->palier).
      */
-    public function getProchainAvantageAttribute(): int
+    public static function prochainAvantagePourPalier(int $palier): int
     {
         $paliers = config('revolution.paliers');
 
         foreach ($paliers as $seuil => $pourcentage) {
-            if ($seuil > $this->palier) {
+            if ($seuil > $palier) {
                 return $pourcentage;
             }
         }
@@ -132,18 +134,35 @@ class Client extends Model
     }
 
     /**
-     * Nombre de commandes restantes avant de débloquer le prochain avantage.
+     * Nombre de commandes restantes avant de débloquer le prochain avantage,
+     * pour un palier donné — même logique factorisée que ci-dessus.
      */
-    public function getCommandesRestantesAttribute(): int
+    public static function commandesRestantesPourPalier(int $palier): int
     {
         $paliers = config('revolution.paliers');
 
         foreach (array_keys($paliers) as $seuil) {
-            if ($seuil > $this->palier) {
-                return $seuil - $this->palier;
+            if ($seuil > $palier) {
+                return $seuil - $palier;
             }
         }
 
-        return (array_key_first($paliers) + 8) - $this->palier;
+        return (array_key_first($paliers) + 8) - $palier;
+    }
+
+    /**
+     * Pourcentage du prochain palier pair à venir dans le cycle.
+     */
+    public function getProchainAvantageAttribute(): int
+    {
+        return static::prochainAvantagePourPalier($this->palier);
+    }
+
+    /**
+     * Nombre de commandes restantes avant de débloquer le prochain avantage.
+     */
+    public function getCommandesRestantesAttribute(): int
+    {
+        return static::commandesRestantesPourPalier($this->palier);
     }
 }

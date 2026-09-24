@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ResoutClientEtNotifie;
 use App\Http\Requests\StoreCommandeRequest;
 use App\Models\Commande;
+use App\Support\LoyaltyCardService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -66,6 +68,34 @@ class CommandeController extends Controller
         return view('commande.confirmation', [
             'commande' => $commande,
             'client' => $commande->client,
+        ]);
+    }
+
+    /**
+     * Carte de fidélité PNG (nouveau gabarit) pour le formulaire libre :
+     * une commande de ce flux est toujours finale dès sa création, donc,
+     * contrairement au flux de demande V2, on se base directement sur
+     * l'état réel du client — aucune projection à faire.
+     */
+    public function carte(string $reference): Response
+    {
+        $commande = Commande::with('client')->where('reference', $reference)->firstOrFail();
+        $client = $commande->client;
+
+        $png = $client->avantage !== null
+            ? LoyaltyCardService::generer($client->nom, $client->palier, $client->avantage)
+            : LoyaltyCardService::genererProgression(
+                $client->nom,
+                $client->palier,
+                $client->commandes_restantes,
+                $client->prochain_avantage
+            );
+
+        return response($png, 200, [
+            'Content-Type' => 'image/png',
+            'Content-Disposition' => 'inline; filename="carte-fidelite-revolution.png"',
+            'Cache-Control' => 'private, max-age=300',
+            'X-Robots-Tag' => 'noindex, nofollow',
         ]);
     }
 }

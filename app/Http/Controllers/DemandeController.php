@@ -7,10 +7,13 @@ use App\Http\Controllers\Concerns\ResoutClientEtNotifie;
 use App\Http\Requests\StoreDemandeRequest;
 use App\Mail\DemandeDeposee;
 use App\Mail\DemandeRecue;
+use App\Models\Client;
 use App\Models\Commande;
 use App\Models\CommandeJournal;
 use App\Models\Parametre;
+use App\Support\LoyaltyCardService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -127,6 +130,43 @@ class DemandeController extends Controller
         return view('commande.demande-confirmation', [
             'commande' => $commande,
             'client' => $commande->client,
+        ]);
+    }
+
+    /**
+     * Carte de fidélité PNG (nouveau gabarit, resources/loyalty/SPECS.md) —
+     * même geste de clôture que la page merci : compte la demande tout
+     * juste déposée comme si elle était déjà livrée. Sert la variante
+     * « palier débloqué » si ce dépôt fait franchir un palier pair, sinon la
+     * variante « progression ». 404 seulement pour une référence inconnue ou
+     * une demande qui n'est plus en_attente.
+     */
+    public function carte(string $reference): Response
+    {
+        $commande = Commande::with('client')
+            ->where('reference', $reference)
+            ->where('statut', 'en_attente')
+            ->firstOrFail();
+
+        $client = $commande->client;
+        $nbProjete = ($client->nb_commandes ?? 0) + 1;
+        $palierProjete = (($nbProjete - 1) % 8) + 1;
+        $avantageProjete = Client::avantagePourNumero($nbProjete);
+
+        $png = $avantageProjete !== null
+            ? LoyaltyCardService::generer($client->nom, $palierProjete, $avantageProjete)
+            : LoyaltyCardService::genererProgression(
+                $client->nom,
+                $palierProjete,
+                Client::commandesRestantesPourPalier($palierProjete),
+                Client::prochainAvantagePourPalier($palierProjete)
+            );
+
+        return response($png, 200, [
+            'Content-Type' => 'image/png',
+            'Content-Disposition' => 'inline; filename="carte-fidelite-revolution.png"',
+            'Cache-Control' => 'private, max-age=300',
+            'X-Robots-Tag' => 'noindex, nofollow',
         ]);
     }
 

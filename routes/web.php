@@ -38,6 +38,9 @@ Route::post('/commande/demande', [DemandeController::class, 'store'])
 Route::get('/commande/demande/{reference}/merci', [DemandeController::class, 'confirmation'])
     ->where('reference', '[A-Z0-9]{6}')
     ->name('commande.demande.merci');
+Route::get('/commande/demande/{reference}/carte.png', [DemandeController::class, 'carte'])
+    ->where('reference', '[A-Z0-9]{6}')
+    ->name('commande.demande.carte');
 
 // Ancien parcours catalogue self-service (v1) — laissé en ligne deux
 // semaines en secours après la bascule (§11, Phase 6), plus aucun lien
@@ -50,6 +53,9 @@ Route::get('/commande/catalogue.json', [CatalogueController::class, 'catalogueJs
 Route::get('/commande/{reference}', [CommandeController::class, 'show'])
     ->where('reference', '[A-Z0-9]{6}')
     ->name('commande.confirmation');
+Route::get('/commande/{reference}/carte.png', [CommandeController::class, 'carte'])
+    ->where('reference', '[A-Z0-9]{6}')
+    ->name('commande.carte');
 
 // Reçu PDF public d'une commande validée (§7.3) — lien porté par un jeton,
 // non indexé, valable 90 jours.
