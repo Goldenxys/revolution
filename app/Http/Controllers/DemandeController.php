@@ -10,7 +10,9 @@ use App\Mail\DemandeRecue;
 use App\Models\Client;
 use App\Models\Commande;
 use App\Models\CommandeJournal;
+use App\Models\Couleur;
 use App\Models\Parametre;
+use App\Models\Taille;
 use App\Support\LoyaltyCardService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
@@ -25,10 +27,13 @@ use Illuminate\View\View;
  *
  * Deux entrées distinctes, choisies sur l'accueil :
  *   • My Verse — la cliente fournit un ou plusieurs versets (référence +
- *     texte). Elle ne choisit ni taille ni couleur : la gérante les règle
- *     à la validation.
- *   • Autre collection — la cliente laisse seulement ses coordonnées et sa
- *     livraison. La gérante reprend l'article convenu sur WhatsApp.
+ *     texte), avec la taille/couleur souhaitées pour chacun (pas de lien au
+ *     stock : My Verse est fabriqué à la demande). Le modèle exact reste
+ *     choisi par la gérante à la validation.
+ *   • Autre collection — la cliente nomme un ou plusieurs articles (avec
+ *     recherche/autocomplétion sur le catalogue, taille/couleur, quantité),
+ *     ou décrit un article hors catalogue. La gérante reprend, complète ou
+ *     corrige tout ceci à la validation — rien de tout cela n'est engageant.
  *
  * Aucun total ferme n'est enregistré : tous les montants restent à zéro
  * tant que la gérante n'a pas validé.
@@ -41,7 +46,7 @@ class DemandeController extends Controller
     {
         return view('commande.demande', [
             'type' => 'my_verse',
-            'communes' => config('revolution.communes'),
+            ...$this->donneesFormulaire(),
         ]);
     }
 
@@ -49,8 +54,26 @@ class DemandeController extends Controller
     {
         return view('commande.demande', [
             'type' => 'autre',
-            'communes' => config('revolution.communes'),
+            ...$this->donneesFormulaire(),
         ]);
+    }
+
+    /**
+     * Données communes aux deux entrées du formulaire — tailles/couleurs
+     * servent à la fois aux versets My Verse et aux lignes d'articles
+     * « Autre collection » (référentiels globaux, ouverts, non filtrés par
+     * stock côté formulaire : la disponibilité réelle reste vérifiée par la
+     * gérante au compositeur).
+     *
+     * @return array<string, mixed>
+     */
+    private function donneesFormulaire(): array
+    {
+        return [
+            'communes' => config('revolution.communes'),
+            'tailles' => Taille::query()->actives()->orderBy('ordre')->get(['id', 'libelle']),
+            'couleurs' => Couleur::query()->actives()->orderBy('ordre')->get(['id', 'nom']),
+        ];
     }
 
     public function store(StoreDemandeRequest $request): RedirectResponse
@@ -60,15 +83,49 @@ class DemandeController extends Controller
 
         $versets = $estMyVerse
             ? collect($donnees['versets'] ?? [])
-                ->map(fn (array $v) => [
-                    'reference' => filled($v['reference'] ?? null) ? trim($v['reference']) : null,
-                    'texte' => filled($v['texte'] ?? null) ? trim($v['texte']) : null,
-                ])
+                ->map(function (array $v) {
+                    $taille = filled($v['taille_id'] ?? null) ? Taille::find($v['taille_id']) : null;
+                    $couleur = filled($v['couleur_id'] ?? null) ? Couleur::find($v['couleur_id']) : null;
+
+                    return [
+                        'reference' => filled($v['reference'] ?? null) ? trim($v['reference']) : null,
+                        'texte' => filled($v['texte'] ?? null) ? trim($v['texte']) : null,
+                        'taille_id' => $taille?->id,
+                        'taille_libelle' => $taille?->libelle,
+                        'couleur_id' => $couleur?->id,
+                        'couleur_nom' => $couleur?->nom,
+                    ];
+                })
                 ->values()
                 ->all()
             : [];
 
-        $commande = DB::transaction(function () use ($donnees, $estMyVerse, $versets) {
+        // Lignes d'articles « Autre collection » — un souhait, jamais
+        // engageant : la gérante repique/complète/corrige tout ceci dans
+        // le compositeur (ComposerDemande::lignesInitiales()), stock inclus.
+        // Une ligne sans nom (répéteur laissé vide) est ignorée.
+        $articles = ! $estMyVerse
+            ? collect($donnees['articles'] ?? [])
+                ->filter(fn (array $a) => filled($a['nom'] ?? null))
+                ->map(function (array $a) {
+                    $taille = filled($a['taille_id'] ?? null) ? Taille::find($a['taille_id']) : null;
+                    $couleur = filled($a['couleur_id'] ?? null) ? Couleur::find($a['couleur_id']) : null;
+
+                    return [
+                        'nom' => trim($a['nom']),
+                        'article_id' => filled($a['article_id'] ?? null) ? (int) $a['article_id'] : null,
+                        'taille_id' => $taille?->id,
+                        'taille_libelle' => $taille?->libelle,
+                        'couleur_id' => $couleur?->id,
+                        'couleur_nom' => $couleur?->nom,
+                        'quantite' => max(1, (int) ($a['quantite'] ?? 1)),
+                    ];
+                })
+                ->values()
+                ->all()
+            : [];
+
+        $commande = DB::transaction(function () use ($donnees, $estMyVerse, $versets, $articles) {
             $client = $this->resoudreProspect($donnees);
 
             // Frais recalculés côté serveur, jamais depuis le formulaire.
@@ -87,7 +144,7 @@ class DemandeController extends Controller
                 'couleur' => null,
                 'souhaits_client' => $estMyVerse
                     ? ['collection' => 'my_verse', 'versets' => $versets]
-                    : null,
+                    : ['collection' => 'autre', 'articles' => $articles],
                 'commune' => $donnees['commune'],
                 'frais_livraison' => $fraisLivraison,
                 'quartier' => $donnees['quartier'] ?? null,
@@ -109,6 +166,7 @@ class DemandeController extends Controller
                 'canal' => 'formulaire_demande_v2',
                 'collection' => $donnees['collection'],
                 'nb_versets' => count($versets),
+                'nb_articles' => count($articles),
             ]);
 
             return $commande;

@@ -28,7 +28,10 @@
             x-data="commandeDemande({
                 type: @js($type),
                 communes: @js($communes),
+                tailles: @js($tailles),
+                couleurs: @js($couleurs),
                 urlReconnaissance: '{{ route('client.reconnaissance') }}',
+                urlCatalogue: '{{ route('commande.catalogue.json') }}',
                 nom: @js(old('nom')),
                 telephone: @js(old('telephone')),
                 email: @js(old('email')),
@@ -39,6 +42,7 @@
                 heureSouhaitee: @js(old('heure_souhaitee')),
                 precisions: @js(old('precisions')),
                 versets: @js(old('versets')),
+                articles: @js(old('articles')),
             })"
             @submit="envoi = true"
             class="space-y-8"
@@ -112,6 +116,29 @@
                                           class="w-full border border-filet bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none"></textarea>
                                 <p class="mt-1.5 text-[13px] text-texte-secondaire">Vérifiez l'orthographe : le verset est imprimé tel que vous l'écrivez.</p>
                             </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm mb-2">Taille</label>
+                                    <select :name="`versets[${index}][taille_id]`" x-model="verset.taille_id"
+                                            class="w-full border border-filet bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
+                                        <option value="">—</option>
+                                        @foreach ($tailles as $taille)
+                                            <option value="{{ $taille->id }}">{{ $taille->libelle }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm mb-2">Couleur</label>
+                                    <select :name="`versets[${index}][couleur_id]`" x-model="verset.couleur_id"
+                                            class="w-full border border-filet bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
+                                        <option value="">—</option>
+                                        @foreach ($couleurs as $couleur)
+                                            <option value="{{ $couleur->id }}">{{ $couleur->nom }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                     </template>
 
@@ -122,24 +149,95 @@
                 </fieldset>
             @endif
 
+            @unless ($estMyVerse)
+                {{-- Bloc 2 — Vos articles (recherche dans le catalogue, plusieurs articles possibles) --}}
+                <fieldset class="space-y-4 border-t border-filet pt-8">
+                    <legend class="text-sm uppercase tracking-[0.14em] text-texte-secondaire mb-1">Vos articles</legend>
+                    <p class="text-[13px] text-texte-secondaire">Cherchez un article de notre catalogue, ou indiquez-en un autre. Ajoutez-en autant que vous voulez commander.</p>
+
+                    <template x-for="(article, index) in articles" :key="index">
+                        <div class="border border-filet bg-carte p-4 space-y-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[13px] text-texte-secondaire" x-text="`Article ${index + 1}`"></span>
+                                <button type="button" x-show="articles.length > 1" @click="retirerArticle(index)"
+                                        class="text-[13px] text-texte-secondaire hover:text-rouille">Retirer</button>
+                            </div>
+
+                            <div class="relative">
+                                <label class="block text-sm mb-2">Nom de l'article</label>
+                                <input type="text" :name="`articles[${index}][nom]`" x-model="article.nom"
+                                       @input="rechercherArticle(index)" @focus="article.rechercheOuverte = true"
+                                       @blur="fermerRechercheDifferee(index)"
+                                       maxlength="190" autocomplete="off" placeholder="Ex. Tee-shirt God's Daughter"
+                                       class="w-full border border-filet bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
+                                <input type="hidden" :name="`articles[${index}][article_id]`" x-model="article.article_id">
+
+                                <template x-if="article.rechercheOuverte && suggestionsPour(article.nom).length">
+                                    <ul class="absolute z-10 left-0 right-0 mt-1 border border-filet bg-carte shadow-lg max-h-56 overflow-auto" x-cloak>
+                                        <template x-for="suggestion in suggestionsPour(article.nom)" :key="suggestion.id">
+                                            <li @mousedown.prevent="choisirArticle(index, suggestion)"
+                                                class="px-4 py-2.5 text-[14px] cursor-pointer hover:bg-creme">
+                                                <span x-text="suggestion.nom"></span>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </template>
+                                <p class="mt-1.5 text-[13px] text-texte-secondaire" x-show="!article.article_id && article.nom">
+                                    Pas encore dans notre catalogue en ligne ? Ce n'est pas grave, indiquez la taille/couleur si vous les connaissez déjà.
+                                </p>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div x-show="optionsTailles(article).length">
+                                    <label class="block text-sm mb-2">Taille</label>
+                                    <select :name="`articles[${index}][taille_id]`" x-model="article.taille_id"
+                                            class="w-full border border-filet bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
+                                        <option value="">—</option>
+                                        <template x-for="taille in optionsTailles(article)" :key="taille.id">
+                                            <option :value="taille.id" x-text="taille.libelle"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div x-show="optionsCouleurs(article).length">
+                                    <label class="block text-sm mb-2">Couleur</label>
+                                    <select :name="`articles[${index}][couleur_id]`" x-model="article.couleur_id"
+                                            class="w-full border border-filet bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
+                                        <option value="">—</option>
+                                        <template x-for="couleur in optionsCouleurs(article)" :key="couleur.id">
+                                            <option :value="couleur.id" x-text="couleur.nom"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm mb-2">Quantité</label>
+                                <input type="number" :name="`articles[${index}][quantite]`" x-model.number="article.quantite"
+                                       min="1" max="20"
+                                       class="w-24 border border-filet bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
+                            </div>
+                        </div>
+                    </template>
+
+                    <button type="button" @click="ajouterArticle()"
+                            class="w-full border border-dashed border-filet text-encre py-3 text-sm hover:border-rouille transition rounded-none">
+                        + Ajouter un autre article
+                    </button>
+                </fieldset>
+            @endunless
+
             {{-- Précisions (facultatif, commun) --}}
             <fieldset class="space-y-4 {{ $estMyVerse ? '' : 'border-t border-filet pt-8' }}">
-                @unless ($estMyVerse)
-                    <legend class="text-sm uppercase tracking-[0.14em] text-texte-secondaire mb-1">Votre commande</legend>
-                @endunless
                 <div>
                     <label for="precisions" class="block text-sm mb-2">
                         Précisions
                         <span class="text-texte-secondaire text-xs">
-                            {{ $estMyVerse ? '(couleur souhaitée, modèle, détail convenu…)' : "(nom de l'article)" }}
+                            {{ $estMyVerse ? '(couleur souhaitée, modèle, détail convenu…)' : '(note complémentaire, facultatif)' }}
                         </span>
                     </label>
                     <textarea id="precisions" name="precisions" rows="3" maxlength="500"
                               x-model="precisions"
                               class="w-full border border-filet bg-carte px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none"></textarea>
-                    @unless ($estMyVerse)
-                        <p class="mt-1.5 text-[13px] text-texte-secondaire">Pas besoin de tout détailler : la gérante reprend l'article et le prix convenus sur WhatsApp.</p>
-                    @endunless
                 </div>
             </fieldset>
 

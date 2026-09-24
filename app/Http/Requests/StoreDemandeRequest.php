@@ -11,10 +11,13 @@ use Illuminate\Validation\Rule;
 /**
  * Formulaire de demande V2 (§4.3). Deux cas :
  *   • My Verse — la cliente renseigne un ou plusieurs versets (référence
- *     et/ou texte). Ni taille ni couleur : la gérante les règle.
- *   • Autre collection — seulement coordonnées + livraison.
+ *     et/ou texte), avec une taille/couleur souhaitées par verset.
+ *   • Autre collection — un ou plusieurs articles (nom libre ou choisi dans
+ *     le catalogue, taille/couleur, quantité).
  *
- * Le serveur ne calcule aucun total ferme.
+ * Dans les deux cas, ce n'est qu'un souhait : aucune vérification de stock
+ * ni de cohérence catalogue ici (la gérante revérifie tout au compositeur,
+ * voir ComposerDemande). Le serveur ne calcule aucun total ferme.
  */
 class StoreDemandeRequest extends FormRequest
 {
@@ -39,6 +42,19 @@ class StoreDemandeRequest extends FormRequest
             'versets' => ['exclude_unless:collection,my_verse', 'required', 'array', 'min:1', 'max:10'],
             'versets.*.reference' => ['nullable', 'string', 'max:120'],
             'versets.*.texte' => ['nullable', 'string', 'max:2000'],
+            'versets.*.taille_id' => ['nullable', 'integer', 'exists:tailles,id'],
+            'versets.*.couleur_id' => ['nullable', 'integer', 'exists:couleurs,id'],
+
+            // Articles « Autre collection » — un souhait, jamais bloquant :
+            // volontairement aucune vérification de stock/disponibilité ici,
+            // la gérante revérifie tout (stock inclus) au compositeur.
+            'articles' => ['exclude_unless:collection,autre', 'nullable', 'array', 'max:20'],
+            'articles.*.nom' => ['nullable', 'string', 'max:190'],
+            'articles.*.article_id' => ['nullable', 'integer', 'exists:articles,id'],
+            'articles.*.taille_id' => ['nullable', 'integer', 'exists:tailles,id'],
+            'articles.*.couleur_id' => ['nullable', 'integer', 'exists:couleurs,id'],
+            'articles.*.quantite' => ['nullable', 'integer', 'min:1', 'max:20'],
+
             'precisions' => ['nullable', 'string', 'max:500'],
 
             // Bloc 3 — La livraison (inchangé)

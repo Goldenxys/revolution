@@ -148,6 +148,83 @@ class CompositeurTest extends TestCase
             });
     }
 
+    public function test_le_compositeur_prefill_taille_et_couleur_dun_verset_my_verse(): void
+    {
+        $gerante = User::factory()->create();
+        $this->catalogue();
+
+        $client = Client::create([
+            'cle' => Client::cleDepuisTelephone('0700000010'),
+            'nom' => 'Aya Kouassi', 'telephone' => '0700000010',
+            'statut' => 'prospect', 'numero_client' => 'REV-C-0010', 'nb_commandes' => 0,
+        ]);
+        $commande = Commande::create([
+            'client_id' => $client->id,
+            'commune' => 'Cocody', 'frais_livraison' => 1500, 'mode_livraison' => 'livreur',
+            'statut' => 'en_attente', 'collection' => 'my_verse',
+            'souhaits_client' => ['collection' => 'my_verse', 'versets' => [
+                ['reference' => 'Philippiens 4:13', 'texte' => null, 'taille_id' => 3, 'taille_libelle' => 'M', 'couleur_id' => 7, 'couleur_nom' => 'Noir'],
+            ]],
+        ]);
+
+        Livewire::actingAs($gerante)
+            ->test(ComposerDemande::class, ['record' => $commande->getKey()])
+            ->assertFormSet(function (array $state) {
+                $ligne = array_values($state['lignes'])[0];
+
+                return $ligne['taille_id'] === 3 && $ligne['couleur_id'] === 7
+                    && $ligne['article_id'] === null; // le modèle My Verse reste à choisir
+            });
+    }
+
+    public function test_le_compositeur_prefill_les_articles_dune_demande_autre_collection(): void
+    {
+        $gerante = User::factory()->create();
+        $cat = $this->catalogue();
+
+        $client = Client::create([
+            'cle' => Client::cleDepuisTelephone('0700000011'),
+            'nom' => 'Koffi', 'telephone' => '0700000011',
+            'statut' => 'prospect', 'numero_client' => 'REV-C-0011', 'nb_commandes' => 0,
+        ]);
+        $commande = Commande::create([
+            'client_id' => $client->id,
+            'commune' => 'Yopougon', 'frais_livraison' => 1500, 'mode_livraison' => 'livreur',
+            'statut' => 'en_attente', 'collection' => 'autre',
+            'souhaits_client' => ['collection' => 'autre', 'articles' => [
+                [
+                    'nom' => $cat['article']->nom, 'article_id' => $cat['article']->id,
+                    'taille_id' => $cat['taille']->id, 'taille_libelle' => $cat['taille']->libelle,
+                    'couleur_id' => $cat['couleur']->id, 'couleur_nom' => $cat['couleur']->nom,
+                    'quantite' => 3,
+                ],
+                [
+                    'nom' => 'Le pull vu sur Instagram', 'article_id' => null,
+                    'taille_id' => null, 'taille_libelle' => null,
+                    'couleur_id' => null, 'couleur_nom' => null,
+                    'quantite' => 1,
+                ],
+            ]],
+        ]);
+
+        Livewire::actingAs($gerante)
+            ->test(ComposerDemande::class, ['record' => $commande->getKey()])
+            ->assertFormSet(function (array $state) use ($cat) {
+                $lignes = array_values($state['lignes']);
+
+                return count($lignes) === 2
+                    // Article reconnu : article_id, prix et quantité repris directement.
+                    && $lignes[0]['article_id'] === $cat['article']->id
+                    && $lignes[0]['prix_unitaire'] === $cat['article']->prix
+                    && $lignes[0]['taille_id'] === $cat['taille']->id
+                    && $lignes[0]['quantite'] === 3
+                    // Article hors catalogue : rien à présélectionner, mais le
+                    // nom tapé par la cliente reste visible pour la gérante.
+                    && $lignes[1]['article_id'] === null
+                    && $lignes[1]['nom_client'] === 'Le pull vu sur Instagram';
+            });
+    }
+
     public function test_une_demande_deja_validee_redirige_vers_sa_fiche(): void
     {
         $gerante = User::factory()->create();

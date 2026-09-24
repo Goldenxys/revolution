@@ -1,5 +1,6 @@
 @php
     use App\Support\Francais;
+    use Illuminate\Support\Facades\Storage;
 
     $livraison = $commande->estYango()
         ? 'Yango — '.Francais::dateHeureLongue($commande->date_souhaitee, $commande->heure_souhaitee)
@@ -11,20 +12,23 @@
 <meta charset="utf-8">
 <style>
     * { font-family: 'DejaVu Sans', sans-serif; }
-    body { margin: 0; color: #17120E; font-size: 12px; }
-    .wrap { padding: 36px 44px; }
-    h1 { font-size: 18px; margin: 0 0 2px; letter-spacing: 2px; }
+    body { margin: 0; color: #17120E; font-size: 11px; }
+    .wrap { padding: 24px 32px; }
+    h1 { font-size: 16px; margin: 0 0 2px; letter-spacing: 2px; }
     .muted { color: #6B6157; }
     .row { width: 100%; }
     table { width: 100%; border-collapse: collapse; }
-    .lignes th { text-align: left; border-bottom: 1px solid #17120E; padding: 6px 4px; font-size: 11px; text-transform: uppercase; }
-    .lignes td { padding: 6px 4px; border-bottom: 1px solid #E9E0D5; }
+    .lignes th { text-align: left; border-bottom: 1px solid #17120E; padding: 4px; font-size: 10px; text-transform: uppercase; }
+    .lignes td { padding: 5px 4px; border-bottom: 1px solid #E9E0D5; vertical-align: top; }
     .num { text-align: right; white-space: nowrap; }
-    .totaux { margin-top: 14px; width: 55%; float: right; }
-    .totaux td { padding: 4px 4px; }
+    .pu .qte { color: #6B6157; font-size: 10px; }
+    .pu .pu-ligne { margin-top: 2px; }
+    .pu img { width: 24px; height: 24px; vertical-align: middle; margin-right: 4px; }
+    .totaux { margin-top: 10px; width: 55%; float: right; }
+    .totaux td { padding: 3px 4px; }
     .fort td { font-weight: bold; border-top: 1px solid #17120E; }
     .ca td { color: #8E3914; font-weight: bold; }
-    .footer { margin-top: 90px; border-top: 1px solid #E9E0D5; padding-top: 12px; font-size: 10px; }
+    .footer { margin-top: 28px; border-top: 1px solid #E9E0D5; padding-top: 8px; font-size: 9px; }
 </style>
 </head>
 <body>
@@ -40,24 +44,35 @@
         </td>
     </tr></table>
 
-    <p style="margin:18px 0 4px;"><strong>{{ $client->nom }}</strong>@if ($client->numero_client) <span class="muted">· {{ $client->numero_client }}</span>@endif</p>
-    <p class="muted" style="margin:0 0 18px;">
+    <p style="margin:14px 0 4px;"><strong>{{ $client->nom }}</strong>@if ($client->numero_client) <span class="muted">· {{ $client->numero_client }}</span>@endif</p>
+    <p class="muted" style="margin:0 0 14px;">
         {{ $client->telephone }}@if ($client->email) · {{ $client->email }}@endif<br>
         {{ $commande->commune }}@if ($commande->quartier) · {{ $commande->quartier }}@endif
     </p>
 
     <table class="lignes">
-        <thead><tr><th>Article</th><th class="num">Qté</th><th class="num">P.U.</th><th class="num">Total</th></tr></thead>
+        <thead><tr><th>Article</th><th class="num">Qté / P.U.</th><th class="num">Total</th></tr></thead>
         <tbody>
         @foreach ($commande->lignes as $ligne)
+            @php
+                $meta = collect([$ligne->taille_libelle, $ligne->couleur_nom])->filter()->implode(' · ');
+                $cheminPhoto = $ligne->article?->photo;
+                $photo = $cheminPhoto && Storage::disk('public')->exists($cheminPhoto)
+                    ? Storage::disk('public')->path($cheminPhoto)
+                    : null;
+            @endphp
             <tr>
                 <td>
                     {{ $ligne->article_nom }}
-                    @php $meta = collect([$ligne->taille_libelle, $ligne->couleur_nom])->filter()->implode(' · '); @endphp
                     @if ($meta)<br><span class="muted">{{ $meta }}</span>@endif
                 </td>
-                <td class="num">{{ $ligne->quantite }}</td>
-                <td class="num">{{ number_format($ligne->prix_unitaire, 0, ',', ' ') }}</td>
+                <td class="num pu">
+                    <div class="qte">{{ $ligne->quantite }} pièce{{ $ligne->quantite > 1 ? 's' : '' }}</div>
+                    <div class="pu-ligne">
+                        @if ($photo)<img src="{{ $photo }}" alt="">@endif
+                        {{ number_format($ligne->prix_unitaire, 0, ',', ' ') }} F
+                    </div>
+                </td>
                 <td class="num">{{ number_format($ligne->prix_unitaire * $ligne->quantite, 0, ',', ' ') }}</td>
             </tr>
         @endforeach
@@ -76,7 +91,7 @@
 
     <div style="clear:both;"></div>
 
-    <p style="margin-top:26px;"><strong>Livraison :</strong> {{ $livraison }}</p>
+    <p style="margin-top:18px;"><strong>Livraison :</strong> {{ $livraison }}</p>
 
     <div class="footer">
         Merci pour votre confiance. RÉVOLUTION — même ta garde-robe intéresse JÉSUS.<br>

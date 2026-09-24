@@ -3,8 +3,14 @@
 namespace Tests\Feature\V2;
 
 use App\Mail\DemandeDeposee;
+use App\Models\Article;
+use App\Models\ArticleVariante;
 use App\Models\Client;
+use App\Models\CollectionCatalogue;
 use App\Models\Commande;
+use App\Models\Couleur;
+use App\Models\Taille;
+use App\Models\TypeArticle;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -14,6 +20,27 @@ use Tests\TestCase;
 class FormulaireDemandeTest extends TestCase
 {
     use RefreshDatabase;
+
+    private function creerArticleCatalogue(): array
+    {
+        $collection = CollectionCatalogue::create(['nom' => 'Identité', 'slug' => 'identite-'.uniqid()]);
+        $type = TypeArticle::create([
+            'nom' => 'Tee-shirt', 'slug' => 'tee-'.uniqid(),
+            'gere_tailles' => true, 'gere_couleurs' => true,
+        ]);
+        $article = Article::create([
+            'collection_id' => $collection->id, 'type_article_id' => $type->id,
+            'nom' => 'Tee-shirt God\'s Daughter', 'slug' => 'gods-daughter-'.uniqid(), 'prix' => 8000,
+        ]);
+        $taille = Taille::create(['libelle' => 'L']);
+        $couleur = Couleur::create(['nom' => 'Beige']);
+        ArticleVariante::create([
+            'article_id' => $article->id, 'taille_id' => $taille->id, 'couleur_id' => $couleur->id,
+            'disponible' => true, 'stock' => 5,
+        ]);
+
+        return compact('article', 'taille', 'couleur');
+    }
 
     public function test_les_deux_pages_se_chargent(): void
     {
@@ -67,6 +94,75 @@ class FormulaireDemandeTest extends TestCase
         Mail::assertQueued(DemandeDeposee::class);
     }
 
+    public function test_une_demande_my_verse_enregistre_taille_et_couleur_par_verset(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        User::factory()->create();
+        $taille = Taille::create(['libelle' => 'M']);
+        $couleur = Couleur::create(['nom' => 'Noir']);
+
+        $this->post(route('commande.demande.store'), [
+            'nom' => 'Aya Kouassi', 'telephone' => '0102030405',
+            'collection' => 'my_verse',
+            'versets' => [
+                ['reference' => 'Philippiens 4:13', 'texte' => null, 'taille_id' => $taille->id, 'couleur_id' => $couleur->id],
+            ],
+            'commune' => 'Cocody', 'mode_livraison' => 'livreur',
+        ])->assertRedirect();
+
+        $verset = Commande::first()->souhaits_client['versets'][0];
+        $this->assertSame($taille->id, $verset['taille_id']);
+        $this->assertSame('M', $verset['taille_libelle']);
+        $this->assertSame($couleur->id, $verset['couleur_id']);
+        $this->assertSame('Noir', $verset['couleur_nom']);
+    }
+
+    public function test_une_demande_autre_collection_enregistre_plusieurs_articles(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        User::factory()->create();
+        $catalogue = $this->creerArticleCatalogue();
+
+        $this->post(route('commande.demande.store'), [
+            'nom' => 'Koffi', 'telephone' => '0102030406',
+            'collection' => 'autre',
+            'articles' => [
+                // Article reconnu dans le catalogue (choisi via la recherche).
+                [
+                    'nom' => $catalogue['article']->nom,
+                    'article_id' => $catalogue['article']->id,
+                    'taille_id' => $catalogue['taille']->id,
+                    'couleur_id' => $catalogue['couleur']->id,
+                    'quantite' => 2,
+                ],
+                // Article hors catalogue (nom tapé librement, pas de match).
+                [
+                    'nom' => 'Le pull vu sur Instagram',
+                    'article_id' => null,
+                    'taille_id' => null,
+                    'couleur_id' => null,
+                    'quantite' => 1,
+                ],
+            ],
+            'commune' => 'Yopougon', 'mode_livraison' => 'livreur',
+        ])->assertRedirect();
+
+        $articles = Commande::first()->souhaits_client['articles'];
+        $this->assertCount(2, $articles);
+
+        $this->assertSame($catalogue['article']->id, $articles[0]['article_id']);
+        $this->assertSame($catalogue['article']->nom, $articles[0]['nom']);
+        $this->assertSame('L', $articles[0]['taille_libelle']);
+        $this->assertSame('Beige', $articles[0]['couleur_nom']);
+        $this->assertSame(2, $articles[0]['quantite']);
+
+        $this->assertNull($articles[1]['article_id']);
+        $this->assertSame('Le pull vu sur Instagram', $articles[1]['nom']);
+        $this->assertSame(1, $articles[1]['quantite']);
+    }
+
     public function test_une_demande_autre_collection_ne_demande_que_les_infos(): void
     {
         Mail::fake();
@@ -82,7 +178,9 @@ class FormulaireDemandeTest extends TestCase
 
         $commande = Commande::first();
         $this->assertSame('autre', $commande->collection);
-        $this->assertNull($commande->souhaits_client);
+        // Aucun article détaillé ici (répéteur laissé vide) : souhaits_client
+        // garde sa structure ('collection' + 'articles'), mais articles est vide.
+        $this->assertSame(['collection' => 'autre', 'articles' => []], $commande->souhaits_client);
         $this->assertNull($commande->verset_reference);
         $this->assertSame('Le pull beige vu sur WhatsApp, taille L', $commande->message_client);
         $this->assertNotNull($commande->client->numero_client); // carte de fidélité aussi

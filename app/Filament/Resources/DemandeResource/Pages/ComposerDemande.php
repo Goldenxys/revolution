@@ -114,6 +114,15 @@ class ComposerDemande extends Page implements HasForms
                                         }
                                     }),
 
+                                Placeholder::make('nom_client_info')
+                                    ->hiddenLabel()
+                                    ->columnSpanFull()
+                                    ->visible(fn (Get $get) => filled($get('nom_client')))
+                                    ->content(fn (Get $get): Htmlable => new HtmlString(
+                                        '<span class="text-sm text-warning-600 dark:text-warning-400">'
+                                        .'La cliente a tapé « '.e($get('nom_client')).' » — pas encore dans le catalogue, choisissez l\'article correspondant ci-dessus.</span>'
+                                    )),
+
                                 Select::make('taille_id')
                                     ->label('Taille')
                                     ->options(fn (Get $get) => static::optionsTailles($get))
@@ -444,9 +453,13 @@ class ComposerDemande extends Page implements HasForms
     }
 
     /**
-     * Lignes de départ. La cliente ne choisit plus d'article — la gérante
-     * le fait ici, ainsi que la taille et la couleur. Pour My Verse, on
-     * crée une ligne par verset demandé, avec le verset pré-rempli.
+     * Lignes de départ, reprises de ce que la cliente a indiqué — jamais
+     * engageant, tout reste modifiable. Pour My Verse : une ligne par
+     * verset demandé (verset + taille/couleur souhaitées ; l'article — quel
+     * modèle My Verse — reste à choisir ici). Pour Autre collection : une
+     * ligne par article demandé, avec l'article déjà résolu si la cliente a
+     * choisi une suggestion du catalogue (prix repris comme au Select), ou
+     * laissé à choisir si elle a tapé un nom hors catalogue.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -460,10 +473,35 @@ class ComposerDemande extends Page implements HasForms
                     $ligne = $this->ligneVide();
                     $ligne['verset'] = trim(collect([$v['reference'] ?? null, $v['texte'] ?? null])
                         ->filter()->implode(' — ')) ?: null;
+                    $ligne['taille_id'] = $v['taille_id'] ?? null;
+                    $ligne['couleur_id'] = $v['couleur_id'] ?? null;
 
                     return $ligne;
                 })->all();
             }
+
+            return [$this->ligneVide()];
+        }
+
+        $articles = collect($this->record->souhaits_client['articles'] ?? []);
+
+        if ($articles->isNotEmpty()) {
+            return $articles->map(function (array $a) {
+                $ligne = $this->ligneVide();
+                $article = filled($a['article_id'] ?? null) ? Article::find($a['article_id']) : null;
+
+                $ligne['article_id'] = $article?->id;
+                $ligne['prix_unitaire'] = $article?->prix;
+                $ligne['taille_id'] = $a['taille_id'] ?? null;
+                $ligne['couleur_id'] = $a['couleur_id'] ?? null;
+                $ligne['quantite'] = max(1, (int) ($a['quantite'] ?? 1));
+                // Nom tapé par la cliente : utile si l'article n'a pas été
+                // reconnu dans le catalogue (article_id absent), pour que la
+                // gérante sache tout de suite quoi chercher/créer.
+                $ligne['nom_client'] = $article ? null : ($a['nom'] ?? null);
+
+                return $ligne;
+            })->all();
         }
 
         return [$this->ligneVide()];
@@ -475,6 +513,7 @@ class ComposerDemande extends Page implements HasForms
         return [
             'article_id' => null, 'taille_id' => null, 'couleur_id' => null,
             'quantite' => 1, 'prix_unitaire' => null, 'verset' => null, 'modele' => null,
+            'nom_client' => null,
         ];
     }
 
