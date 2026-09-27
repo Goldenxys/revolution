@@ -61,13 +61,13 @@
         composer: [
             {
                 selector: '[data-tour="souhaits"]',
-                titre: 'Ce que la cliente a dit',
-                texte: 'À gauche, en lecture seule : ses coordonnées, son verset ou ses précisions, et sa livraison. Rien ne se modifie ici.',
+                titre: 'La cliente et sa livraison',
+                texte: 'À gauche, en lecture seule : ses coordonnées, son historique, et la livraison choisie. Rien ne se modifie ici.',
             },
             {
                 selector: '.fi-fo-repeater',
                 titre: 'Ce que vous décidez',
-                texte: "À droite, composez les vraies lignes de la commande : article, taille, couleur, quantité. Le prix est pré-rempli depuis le catalogue et reste modifiable.",
+                texte: "À droite, les lignes sont déjà préremplies avec ce que la cliente a indiqué (article reconnu ou non, taille, couleur, quantité, verset, précisions) — vous n'avez qu'à vérifier, corriger si besoin, et valider. La photo du produit apparaît en bas de chaque ligne reconnue pour confirmer d'un coup d'œil.",
             },
             {
                 selector: '[data-tour="montants"]',
@@ -89,12 +89,17 @@
             {
                 selector: '.fi-ta-ctn',
                 titre: 'Modifier le stock',
-                texte: "Le nombre de pièces se modifie directement dans le tableau, sans ouvrir de fiche. Utilisez les filtres pour ne voir que le stock faible ou les ruptures.",
+                texte: "Le nombre de pièces se modifie directement dans le tableau, sans ouvrir de fiche. Sélectionnez des lignes pour les actions groupées : « Ajouter au stock » ou « Supprimer le stock » (retire complètement la taille/couleur choisie). Utilisez les filtres pour ne voir que le stock faible ou les ruptures.",
             },
             {
                 selector: '[data-tour="entree-stock"]',
                 titre: 'Entrée de stock',
-                texte: 'Après une réception de marchandise, ce bouton ajoute la quantité reçue à une ou plusieurs variantes en trois clics.',
+                texte: "Après une réception de marchandise : choisissez l'article, puis saisissez la taille, la couleur et la quantité reçue. Si cette combinaison n'existait plus (supprimée), elle est recréée automatiquement ; sinon la quantité s'ajoute à ce qui est déjà enregistré.",
+            },
+            {
+                selector: '[data-tour="reinitialiser-stock"]',
+                titre: 'Réinitialiser le stock complet',
+                texte: "À utiliser avec précaution : ce bouton supprime d'un coup toutes les désignations de stock de tous les articles (My Verse n'est jamais concerné). Un e-mail récapitulatif avec le détail de tout ce qui a été supprimé vous est envoyé aussitôt.",
             },
         ],
         commandes: [

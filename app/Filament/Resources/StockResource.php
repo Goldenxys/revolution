@@ -271,6 +271,7 @@ class StockResource extends Resource
                     ->label('Réinitialiser le stock complet')
                     ->icon('heroicon-o-exclamation-triangle')
                     ->color('danger')
+                    ->extraAttributes(['data-tour' => 'reinitialiser-stock'])
                     ->requiresConfirmation()
                     ->modalHeading('Réinitialiser tout le stock ?')
                     ->modalDescription('Toutes les désignations de stock (taille, couleur, quantité) de tous les articles seront supprimées d\'un coup. Cette action est irréversible — un e-mail récapitulatif partira avec le détail de ce qui a été supprimé.')
