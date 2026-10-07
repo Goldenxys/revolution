@@ -184,4 +184,65 @@ class RecuEtEmailsTest extends TestCase
         $this->assertStringContainsString('À payer', $message);
         $this->assertStringStartsWith('https://wa.me/225', $commande->lienWhatsappRecu());
     }
+
+    /**
+     * Les clientes ne doivent jamais voir le jargon interne « Chiffre
+     * d'affaires » sur leurs reçus (PDF, e-mail, WhatsApp).
+     */
+    public function test_le_libelle_chiffre_daffaires_napparait_jamais_cote_cliente(): void
+    {
+        Storage::fake('local');
+        Mail::fake();
+        $gerante = User::factory()->create();
+        [, $commande] = $this->demandeValidable();
+        $commande->valider($gerante);
+        $commande->refresh();
+
+        $this->assertStringNotContainsString("Chiffre d'affaires", $commande->messageWhatsappRecu());
+
+        $pdfHtml = view('pdf.recu', ['commande' => $commande, 'client' => $commande->client])->render();
+        $this->assertStringNotContainsString("Chiffre d'affaires", $pdfHtml);
+
+        $mailHtml = (new RecuCommande($commande))->render();
+        $this->assertStringNotContainsString("Chiffre d'affaires", $mailHtml);
+    }
+
+    /**
+     * La carte anniversaire n'apparaît sur les reçus client que si elle a
+     * réellement été ajoutée à la commande.
+     */
+    public function test_la_carte_anniversaire_napparait_sur_les_recus_que_si_ajoutee(): void
+    {
+        Storage::fake('local');
+        Mail::fake();
+        $gerante = User::factory()->create();
+        [, $commande] = $this->demandeValidable();
+
+        $commande->valider($gerante);
+        $commande->refresh();
+        $this->assertStringNotContainsString('Carte anniversaire', $commande->messageWhatsappRecu());
+
+        $autreClient = Client::create([
+            'cle' => Client::cleDepuisTelephone('0700000456'),
+            'nom' => 'Awa Diallo', 'telephone' => '0700000456', 'email' => 'autre@example.com',
+            'statut' => 'prospect', 'numero_client' => 'REV-C-0456', 'nb_commandes' => 0,
+        ]);
+        $commandeAvecCarte = Commande::create([
+            'client_id' => $autreClient->id, 'commune' => 'Cocody', 'frais_livraison' => 1500,
+            'mode_livraison' => 'livreur', 'statut' => 'en_attente',
+        ]);
+        $commandeAvecCarte->lignes()->create([
+            'article_nom' => 'Tee-shirt Couronne', 'taille_libelle' => 'XL', 'couleur_nom' => 'Blanc',
+            'quantite' => 2, 'prix_unitaire' => 7000,
+        ]);
+
+        $commandeAvecCarte->valider($gerante, null, 500);
+        $commandeAvecCarte->refresh();
+
+        $message = $commandeAvecCarte->messageWhatsappRecu();
+        $this->assertStringContainsString('Carte anniversaire', $message);
+
+        $pdfHtml = view('pdf.recu', ['commande' => $commandeAvecCarte, 'client' => $commandeAvecCarte->client])->render();
+        $this->assertStringContainsString('Carte anniversaire', $pdfHtml);
+    }
 }

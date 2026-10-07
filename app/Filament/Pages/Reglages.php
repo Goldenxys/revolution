@@ -9,6 +9,8 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 
 class Reglages extends Page implements HasForms
 {
@@ -25,9 +27,21 @@ class Reglages extends Page implements HasForms
     /** @var array<string, mixed> */
     public ?array $data = [];
 
+    /** @var array<string, mixed> */
+    public ?array $passwordData = [];
+
     public function mount(): void
     {
         $this->form->fill(Parametre::actuel()->only(['email_reception', 'mail_cle', 'code_acces']));
+        $this->passwordForm->fill();
+    }
+
+    protected function getForms(): array
+    {
+        return [
+            'form',
+            'passwordForm',
+        ];
     }
 
     public function form(Form $form): Form
@@ -54,6 +68,43 @@ class Reglages extends Page implements HasForms
             ->statePath('data');
     }
 
+    /**
+     * Formulaire séparé (pas mélangé à Parametre::actuel()) : la gérante
+     * change son mot de passe de connexion à l'Espace RÉVOLUTION sans
+     * toucher aux autres réglages. Mêmes règles que le formulaire Breeze
+     * historique (app/Http/Controllers/Auth/PasswordController.php),
+     * jusqu'ici seulement accessible via /profile, jamais lié depuis le
+     * panneau — la gérante n'avait donc aucun moyen de le trouver.
+     */
+    public function passwordForm(Form $form): Form
+    {
+        return $form
+            ->schema([
+                TextInput::make('current_password')
+                    ->label('Mot de passe actuel')
+                    ->password()
+                    ->revealable()
+                    ->required()
+                    ->currentPassword(),
+
+                TextInput::make('password')
+                    ->label('Nouveau mot de passe')
+                    ->password()
+                    ->revealable()
+                    ->required()
+                    ->rule(Password::defaults())
+                    ->same('password_confirmation'),
+
+                TextInput::make('password_confirmation')
+                    ->label('Confirmer le nouveau mot de passe')
+                    ->password()
+                    ->revealable()
+                    ->required()
+                    ->dehydrated(false),
+            ])
+            ->statePath('passwordData');
+    }
+
     public function enregistrer(): void
     {
         $donnees = $this->form->getState();
@@ -62,6 +113,22 @@ class Reglages extends Page implements HasForms
 
         Notification::make()
             ->title('Réglages enregistrés')
+            ->success()
+            ->send();
+    }
+
+    public function changerMotDePasse(): void
+    {
+        $donnees = $this->passwordForm->getState();
+
+        auth()->user()->update([
+            'password' => Hash::make($donnees['password']),
+        ]);
+
+        $this->passwordForm->fill();
+
+        Notification::make()
+            ->title('Mot de passe mis à jour')
             ->success()
             ->send();
     }

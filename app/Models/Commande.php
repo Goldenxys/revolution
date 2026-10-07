@@ -36,6 +36,7 @@ class Commande extends Model
         'verset_texte',
         'commune',
         'frais_livraison',
+        'frais_carte_anniversaire',
         'quartier',
         'mode_livraison',
         'date_souhaitee',
@@ -61,6 +62,7 @@ class Commande extends Model
 
     protected $casts = [
         'frais_livraison' => 'integer',
+        'frais_carte_anniversaire' => 'integer',
         'numero_commande_client' => 'integer',
         'date_souhaitee' => 'date',
         'heure_souhaitee' => 'datetime:H:i',
@@ -358,8 +360,9 @@ class Commande extends Model
 
         return "Bonjour {$this->client->nom}, voici le reçu de votre commande {$this->reference} :\n\n"
             ."{$lignes}\n\n"
-            .'Chiffre d\'affaires : '.Francais::frais($this->total_articles)."\n"
+            .'Montant des articles : '.Francais::frais($this->total_articles)."\n"
             .'Livraison : '.Francais::frais($this->frais_livraison)."\n"
+            .($this->frais_carte_anniversaire > 0 ? 'Carte anniversaire : '.Francais::frais($this->frais_carte_anniversaire)."\n" : '')
             .'À payer : '.Francais::frais($this->total_a_payer)."\n\n"
             .'Votre reçu : '.$this->lienRecuPublic();
     }
@@ -413,10 +416,15 @@ class Commande extends Model
      *                                             livrée — cas rare, la
      *                                             gérante peut toujours
      *                                             corriger via remise_manuelle).
+     * @param  int  $fraisCarteAnniversaire  Supplément carte anniversaire
+     *                                       (0 si non proposée), figé sur la
+     *                                       commande — hors chiffre
+     *                                       d'affaires, même principe que
+     *                                       les frais de livraison.
      *
      * @throws RuntimeException si la commande n'a aucune ligne composée.
      */
-    public function valider(User $utilisateur, ?int $remiseForceePourcentage = null): void
+    public function valider(User $utilisateur, ?int $remiseForceePourcentage = null, int $fraisCarteAnniversaire = 0): void
     {
         // Idempotent : déjà validée (ou annulée, ou jamais en_attente pour
         // commencer) — aucun effet, pas d'exception. Seul un appel sur une
@@ -431,7 +439,7 @@ class Commande extends Model
             throw new RuntimeException('Impossible de valider une commande sans lignes.');
         }
 
-        DB::transaction(function () use ($utilisateur, $remiseForceePourcentage, $lignes) {
+        DB::transaction(function () use ($utilisateur, $remiseForceePourcentage, $fraisCarteAnniversaire, $lignes) {
             $client = $this->client()->lockForUpdate()->first();
 
             $sousTotal = $lignes->sum(fn (CommandeLigne $ligne) => $ligne->prix_unitaire * $ligne->quantite);
@@ -441,17 +449,19 @@ class Commande extends Model
                 ?? (Client::avantagePourNumero($numeroCommandeClient) ?? 0);
 
             // Remise calculée sur le chiffre d'affaires seul : les frais de
-            // livraison n'entrent jamais dans son calcul (V2 §5.2 — cohérent
-            // avec « le CA exclut toujours la livraison »).
+            // livraison et la carte anniversaire n'entrent jamais dans son
+            // calcul (V2 §5.2 — cohérent avec « le CA exclut toujours la
+            // livraison »).
             $remiseMontant = (int) round($sousTotal * $remisePourcentage / 100);
             $totalArticles = $sousTotal - $remiseMontant;
-            $totalAPayer = $totalArticles + $this->frais_livraison;
+            $totalAPayer = $totalArticles + $this->frais_livraison + $fraisCarteAnniversaire;
 
             $this->update([
                 'sous_total' => $sousTotal,
                 'remise_pourcentage' => $remisePourcentage,
                 'remise_montant' => $remiseMontant,
                 'total_articles' => $totalArticles,
+                'frais_carte_anniversaire' => $fraisCarteAnniversaire,
                 'total_a_payer' => $totalAPayer,
                 'total' => $totalAPayer,
                 'statut' => 'validee',
@@ -472,6 +482,7 @@ class Commande extends Model
                 'total_a_payer' => $totalAPayer,
                 'remise_pourcentage' => $remisePourcentage,
                 'remise_forcee' => $remiseForceePourcentage !== null,
+                'frais_carte_anniversaire' => $fraisCarteAnniversaire,
             ], $utilisateur->id);
 
             // Reçu PDF + e-mail cliente (§7) : partent dès la validation, la

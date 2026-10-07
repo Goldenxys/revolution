@@ -77,6 +77,7 @@ class ComposerDemande extends Page implements HasForms
             'lignes' => $this->lignesInitiales(),
             'remise_manuelle' => false,
             'remise_pourcentage' => $this->remiseProposee(),
+            'carte_anniversaire' => false,
         ]);
     }
 
@@ -231,6 +232,15 @@ class ComposerDemande extends Page implements HasForms
                     ])
                     ->columns(1),
 
+                Section::make('Carte anniversaire')
+                    ->schema([
+                        Toggle::make('carte_anniversaire')
+                            ->label('Ajouter une carte anniversaire (+'.Francais::frais(config('revolution.prix_carte_anniversaire')).')')
+                            ->helperText('Supplément ajouté au montant à payer, hors chiffre d\'affaires.')
+                            ->live(),
+                    ])
+                    ->columns(1),
+
                 Section::make('Montants')
                     ->extraAttributes(['data-tour' => 'montants'])
                     ->schema([
@@ -289,7 +299,11 @@ class ComposerDemande extends Page implements HasForms
             ? (int) ($etat['remise_pourcentage'] ?? 0)
             : null;
 
-        DB::transaction(function () use ($lignes, $remiseForcee) {
+        $fraisCarteAnniversaire = ($etat['carte_anniversaire'] ?? false)
+            ? (int) config('revolution.prix_carte_anniversaire')
+            : 0;
+
+        DB::transaction(function () use ($lignes, $remiseForcee, $fraisCarteAnniversaire) {
             // On repart de zéro : la composition remplace toute ébauche
             // précédente. Les copies figées deviennent la vérité historique.
             $this->record->lignes()->delete();
@@ -313,7 +327,7 @@ class ComposerDemande extends Page implements HasForms
                 ]);
             }
 
-            $this->record->valider(auth()->user(), $remiseForcee);
+            $this->record->valider(auth()->user(), $remiseForcee, $fraisCarteAnniversaire);
         });
 
         Notification::make()
@@ -451,6 +465,7 @@ class ComposerDemande extends Page implements HasForms
         $remise = (int) round($sousTotal * $pct / 100);
         $ca = $sousTotal - $remise;
         $frais = (int) $this->record->frais_livraison;
+        $carteAnniversaire = ($get('carte_anniversaire') ?? false) ? (int) config('revolution.prix_carte_anniversaire') : 0;
 
         $l = fn (string $libelle, string $valeur, bool $fort = false) => '<div class="flex justify-between py-1 '
             .($fort ? 'font-semibold text-base' : 'text-sm').'"><span>'.e($libelle).'</span><span>'.e($valeur).'</span></div>';
@@ -462,8 +477,9 @@ class ComposerDemande extends Page implements HasForms
             .'<div class="border-t border-gray-200 dark:border-white/10 my-1"></div>'
             .$l('Chiffre d\'affaires', Francais::frais($ca), true)
             .$l('Frais de livraison ('.e($this->record->commune).') — hors CA', Francais::frais($frais))
+            .($carteAnniversaire > 0 ? $l('Carte anniversaire — hors CA', Francais::frais($carteAnniversaire)) : '')
             .'<div class="border-t border-gray-200 dark:border-white/10 my-1"></div>'
-            .$l('À encaisser', Francais::frais($ca + $frais), true)
+            .$l('À encaisser', Francais::frais($ca + $frais + $carteAnniversaire), true)
             .'</div>'
         );
     }

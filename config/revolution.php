@@ -91,4 +91,15 @@ return [
     */
     'paliers' => [2 => 15, 4 => 30, 6 => 45, 8 => 65],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Carte anniversaire
+    |--------------------------------------------------------------------------
+    |
+    | Supplément optionnel proposé par la gérante au compositeur, hors
+    | chiffre d'affaires (même principe que les frais de livraison).
+    |
+    */
+    'prix_carte_anniversaire' => 500,
+
 ];

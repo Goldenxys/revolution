@@ -129,6 +129,47 @@ class CompositeurTest extends TestCase
         $this->assertSame(3, $cat['variante']->refresh()->stock); // 5 − 2
     }
 
+    /**
+     * Le supplément carte anniversaire s'ajoute au total à payer, jamais au
+     * chiffre d'affaires (ni donc au CA cumulé de la cliente à la livraison).
+     */
+    public function test_la_carte_anniversaire_sajoute_au_total_a_payer_hors_ca(): void
+    {
+        $gerante = User::factory()->create();
+        $cat = $this->catalogue();
+        [$client, $commande] = $this->demande();
+
+        Livewire::actingAs($gerante)
+            ->test(ComposerDemande::class, ['record' => $commande->getKey()])
+            ->fillForm([
+                'lignes' => [
+                    [
+                        'article_id' => $cat['article']->id,
+                        'taille_id' => $cat['taille']->id,
+                        'couleur_id' => $cat['couleur']->id,
+                        'quantite' => 2,
+                        'prix_unitaire' => 7000,
+                    ],
+                ],
+                'remise_manuelle' => false,
+                'carte_anniversaire' => true,
+            ])
+            ->call('valider')
+            ->assertHasNoFormErrors();
+
+        $commande->refresh();
+
+        $this->assertSame(500, $commande->frais_carte_anniversaire);
+        $this->assertSame(14000, $commande->total_articles);               // inchangé : hors CA
+        $this->assertSame(16000, $commande->total_a_payer);                // 14000 + 1500 livraison + 500 carte
+
+        $commande->update(['statut' => 'en_livraison']);
+        $commande->confirmerLivraison($gerante);
+
+        // Le CA cumulé de la cliente n'inclut jamais la carte anniversaire.
+        $this->assertSame(14000, $client->refresh()->ca_cumule);
+    }
+
     public function test_le_compositeur_cree_une_ligne_par_verset_avec_le_verset_pre_rempli(): void
     {
         $gerante = User::factory()->create();

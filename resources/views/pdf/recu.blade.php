@@ -84,8 +84,11 @@
         @if ($commande->remise_montant > 0)
             <tr><td>Remise fidélité − {{ $commande->remise_pourcentage }} %</td><td class="num">− {{ Francais::frais($commande->remise_montant) }}</td></tr>
         @endif
-        <tr class="ca"><td>Chiffre d'affaires</td><td class="num">{{ Francais::frais($commande->total_articles) }}</td></tr>
+        <tr class="ca"><td>Montant des articles</td><td class="num">{{ Francais::frais($commande->total_articles) }}</td></tr>
         <tr><td>Frais de livraison</td><td class="num">{{ Francais::frais($commande->frais_livraison) }}</td></tr>
+        @if ($commande->frais_carte_anniversaire > 0)
+            <tr><td>Carte anniversaire</td><td class="num">{{ Francais::frais($commande->frais_carte_anniversaire) }}</td></tr>
+        @endif
         <tr class="fort"><td>Total à payer</td><td class="num">{{ Francais::frais($commande->total_a_payer) }}</td></tr>
     </table>
 

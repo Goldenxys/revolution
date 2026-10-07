@@ -104,6 +104,43 @@ class ValidationCommandeTest extends TestCase
         $this->assertDatabaseHas('commande_journal', ['commande_id' => $commande->id, 'evenement' => 'validee']);
     }
 
+    /**
+     * La carte anniversaire est un supplément hors chiffre d'affaires, figé
+     * sur la commande — même principe que les frais de livraison.
+     */
+    public function test_valider_ajoute_le_frais_carte_anniversaire_hors_chiffre_daffaires(): void
+    {
+        $gerante = User::factory()->create();
+        [, $commande] = $this->prospectAvecDemande();
+
+        $commande->lignes()->create([
+            'article_nom' => 'Tee-shirt Couronne', 'taille_libelle' => 'XL', 'couleur_nom' => 'Blanc',
+            'quantite' => 2, 'prix_unitaire' => 7000,
+        ]);
+
+        $commande->valider($gerante, null, 500);
+        $commande->refresh();
+
+        $this->assertSame(500, $commande->frais_carte_anniversaire);
+        $this->assertSame(14000, $commande->total_articles);          // inchangé : hors CA
+        $this->assertSame(16000, $commande->total_a_payer);           // 14000 + 1500 livraison + 500 carte
+    }
+
+    public function test_valider_sans_carte_anniversaire_laisse_le_frais_a_zero(): void
+    {
+        $gerante = User::factory()->create();
+        [, $commande] = $this->prospectAvecDemande();
+
+        $commande->lignes()->create([
+            'article_nom' => 'Tee-shirt Couronne', 'taille_libelle' => 'XL', 'couleur_nom' => 'Blanc',
+            'quantite' => 2, 'prix_unitaire' => 7000,
+        ]);
+
+        $commande->valider($gerante);
+
+        $this->assertSame(0, $commande->refresh()->frais_carte_anniversaire);
+    }
+
     public function test_valider_ne_decremente_pas_le_stock(): void
     {
         $gerante = User::factory()->create();

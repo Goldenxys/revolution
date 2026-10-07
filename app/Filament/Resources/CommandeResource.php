@@ -355,6 +355,9 @@ class CommandeResource extends Resource
                         ->formatStateUsing(fn (Commande $commande) => $commande->estYango()
                             ? 'Yango — '.Francais::dateHeureLongue($commande->date_souhaitee, $commande->heure_souhaitee)
                             : 'Livreur normal — selon les zones'),
+                    TextEntry::make('frais_carte_anniversaire')->label('Carte anniversaire')
+                        ->visible(fn (Commande $commande) => $commande->frais_carte_anniversaire > 0)
+                        ->formatStateUsing(fn ($state) => Francais::frais($state)),
                 ]),
         ]);
     }
