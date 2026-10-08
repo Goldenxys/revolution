@@ -272,6 +272,26 @@ class ComposerDemande extends Page implements HasForms
                         ->send();
                 }),
 
+            Action::make('lien_reprise')
+                ->label('Copier le lien de reprise pour la cliente')
+                ->icon('heroicon-o-link')
+                ->color('gray')
+                ->modalHeading('Lien de reprise de la demande')
+                ->modalDescription('À envoyer où vous voulez (WhatsApp, SMS…) : la cliente retrouve sa demande déjà remplie et peut la compléter ou la corriger.')
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Fermer')
+                ->modalContent(fn (): Htmlable => new HtmlString(
+                    '<div x-data="{ lien: '.e(json_encode($this->record->lienReprise())).', copie: false }" class="flex items-center gap-2">
+                        <input type="text" readonly x-model="lien" x-on:click="$el.select()"
+                               class="fi-input flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm">
+                        <button type="button"
+                                x-on:click="navigator.clipboard.writeText(lien); copie = true; setTimeout(() => copie = false, 1500)"
+                                class="fi-btn fi-btn-size-md inline-flex items-center gap-1 rounded-lg bg-gray-800 dark:bg-gray-200 px-3 py-2 text-sm font-medium text-white dark:text-gray-800">
+                            <span x-text="copie ? \'Copié !\' : \'Copier\'"></span>
+                        </button>
+                    </div>'
+                )),
+
             Action::make('valider')
                 ->label('Valider la commande')
                 ->icon('heroicon-o-check-badge')

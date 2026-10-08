@@ -125,13 +125,20 @@ class DemandeController extends Controller
                 ->all()
             : [];
 
-        $commande = DB::transaction(function () use ($donnees, $estMyVerse, $versets, $articles) {
+        // Lien de reprise (ComposerDemande) : la cliente renvoie le même
+        // formulaire, cette fois avec la référence de sa demande encore
+        // en_attente — on la met à jour au lieu d'en créer une nouvelle.
+        $commandeExistante = filled($donnees['reference'] ?? null)
+            ? Commande::where('reference', $donnees['reference'])->where('statut', 'en_attente')->first()
+            : null;
+
+        $commande = DB::transaction(function () use ($donnees, $estMyVerse, $versets, $articles, $commandeExistante) {
             $client = $this->resoudreProspect($donnees);
 
             // Frais recalculés côté serveur, jamais depuis le formulaire.
             $fraisLivraison = config('revolution.communes')[$donnees['commune']];
 
-            $commande = Commande::create([
+            $attributs = [
                 'client_id' => $client->id,
                 'collection' => $donnees['collection'],
                 // Le premier verset alimente aussi les colonnes historiques
@@ -151,18 +158,28 @@ class DemandeController extends Controller
                 'mode_livraison' => $donnees['mode_livraison'],
                 'date_souhaitee' => $donnees['date_souhaitee'] ?? null,
                 'heure_souhaitee' => $donnees['heure_souhaitee'] ?? null,
-                'statut' => 'en_attente',
                 'message_client' => $donnees['precisions'] ?? null,
-                // Aucune vente à ce stade : tous les totaux restent à zéro.
-                'sous_total' => 0,
-                'remise_pourcentage' => 0,
-                'remise_montant' => 0,
-                'total' => 0,
-                'total_articles' => 0,
-                'total_a_payer' => 0,
-            ]);
+            ];
 
-            CommandeJournal::consigner($commande, 'creee', [
+            if ($commandeExistante) {
+                $commandeExistante->update($attributs);
+                $commande = $commandeExistante;
+                $evenement = 'modifiee_par_cliente';
+            } else {
+                $commande = Commande::create($attributs + [
+                    'statut' => 'en_attente',
+                    // Aucune vente à ce stade : tous les totaux restent à zéro.
+                    'sous_total' => 0,
+                    'remise_pourcentage' => 0,
+                    'remise_montant' => 0,
+                    'total' => 0,
+                    'total_articles' => 0,
+                    'total_a_payer' => 0,
+                ]);
+                $evenement = 'creee';
+            }
+
+            CommandeJournal::consigner($commande, $evenement, [
                 'canal' => 'formulaire_demande_v2',
                 'collection' => $donnees['collection'],
                 'nb_versets' => count($versets),
@@ -172,10 +189,52 @@ class DemandeController extends Controller
             return $commande;
         });
 
-        $this->notifierGerante($commande);
-        $this->accuserReceptionCliente($commande);
+        if ($commandeExistante) {
+            $this->notifierGeranteMiseAJour($commande);
+        } else {
+            $this->notifierGerante($commande);
+            $this->accuserReceptionCliente($commande);
+        }
 
         return redirect()->route('commande.demande.merci', $commande->reference);
+    }
+
+    /**
+     * Rouvre le formulaire de demande, pré-rempli avec tout ce que la
+     * cliente a déjà saisi — suivi du lien de reprise envoyé par la
+     * gérante (ComposerDemande) si elle s'est trompée ou a oublié un
+     * article. Redirige vers l'accueil, sans pré-remplissage, si la
+     * demande est introuvable ou déjà composée/validée : rien à reprendre.
+     */
+    public function reprendre(string $reference): View|RedirectResponse
+    {
+        $commande = Commande::with('client')->where('reference', $reference)->first();
+
+        if (! $commande || $commande->statut !== 'en_attente') {
+            return redirect()
+                ->route('accueil')
+                ->with('info', 'Cette demande a déjà été traitée. Vous pouvez en déposer une nouvelle.');
+        }
+
+        $client = $commande->client;
+        $souhaits = $commande->souhaits_client ?? [];
+
+        session()->flashInput([
+            'reference' => $commande->reference,
+            'nom' => $client->nom,
+            'telephone' => $client->telephone,
+            'email' => $client->email,
+            'commune' => $commande->commune,
+            'quartier' => $commande->quartier,
+            'mode_livraison' => $commande->mode_livraison,
+            'date_souhaitee' => optional($commande->date_souhaitee)->format('Y-m-d'),
+            'heure_souhaitee' => optional($commande->heure_souhaitee)->format('H:i'),
+            'precisions' => $commande->message_client,
+            'versets' => $souhaits['versets'] ?? null,
+            'articles' => $souhaits['articles'] ?? null,
+        ]);
+
+        return redirect()->route($commande->estMyVerse() ? 'commande.demande.creer' : 'commande.demande.autre');
     }
 
     public function confirmation(string $reference): View
@@ -249,6 +308,20 @@ class DemandeController extends Controller
                 'erreur' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Alerte la gérante qu'une demande qu'elle connaît déjà vient d'être
+     * modifiée par la cliente (lien de reprise) — cloche Filament
+     * seulement, titre adapté pour ne pas laisser croire à une commande
+     * inédite. Pas de nouvel accusé de réception : la cliente vient d'agir
+     * volontairement, inutile de le lui confirmer par un second e-mail.
+     */
+    private function notifierGeranteMiseAJour(Commande $commande): void
+    {
+        $urlCompositeur = ComposerDemande::getUrl(['record' => $commande]);
+
+        $this->notifierNouvelleCommande($commande, $urlCompositeur, 'Demande modifiée par la cliente');
     }
 
     /**

@@ -136,8 +136,14 @@ trait ResoutClientEtNotifie
      *                            notification — la fiche commande par
      *                            défaut, ou le compositeur pour une
      *                            demande V2 fraîchement déposée.
+     * @param  string|null  $titre  Titre de la notification — par défaut
+     *                              « Nouvelle commande RÉVOLUTION » ; une
+     *                              demande simplement mise à jour par la
+     *                              cliente (lien de reprise) passe son
+     *                              propre titre pour ne pas laisser croire
+     *                              à une commande inédite.
      */
-    private function notifierNouvelleCommande(Commande $commande, ?string $url = null): void
+    private function notifierNouvelleCommande(Commande $commande, ?string $url = null, ?string $titre = null): void
     {
         $commande->loadMissing(['client', 'lignes.article.collection']);
 
@@ -147,7 +153,7 @@ trait ResoutClientEtNotifie
 
         try {
             $notification = Notification::make()
-                ->title('Nouvelle commande RÉVOLUTION')
+                ->title($titre ?? 'Nouvelle commande RÉVOLUTION')
                 ->body("{$commande->client->nom} — {$libelleCollection}")
                 ->icon('heroicon-o-shopping-bag')
                 ->iconColor($doree ? 'gold' : 'primary')

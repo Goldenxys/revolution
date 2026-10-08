@@ -1,8 +1,6 @@
 @php
     use App\Support\Francais;
-    $livraison = $commande->estYango()
-        ? 'Yango — '.Francais::dateHeureLongue($commande->date_souhaitee, $commande->heure_souhaitee)
-        : 'Livreur normal — selon les zones';
+    $livraison = $commande->libelleLivraison();
 @endphp
 <!DOCTYPE html>
 <html lang="fr">

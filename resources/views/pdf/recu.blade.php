@@ -2,9 +2,7 @@
     use App\Support\Francais;
     use Illuminate\Support\Facades\Storage;
 
-    $livraison = $commande->estYango()
-        ? 'Yango — '.Francais::dateHeureLongue($commande->date_souhaitee, $commande->heure_souhaitee)
-        : 'Livreur normal — livraison selon les zones';
+    $livraison = $commande->libelleLivraison();
 @endphp
 <!DOCTYPE html>
 <html lang="fr">

@@ -1,5 +1,5 @@
 @php
-    $souhaits = $commande->souhaits_client ?? [];
+    $lignes = $commande->lignesSouhaitees();
 @endphp
 <!DOCTYPE html>
 <html lang="fr">
@@ -14,14 +14,13 @@
 </td></tr>
 <tr><td style="padding:8px 32px;font-size:14px;line-height:1.6;">
     Merci {{ $client->nom }}. Nous vérifions le contenu et nous vous confirmons le montant définitif très vite.
-    <span style="color:#6B6157;">Référence {{ $commande->reference }}.</span>
 </td></tr>
 <tr><td style="padding:8px 32px 4px;">
     <h2 style="margin:0 0 6px;font-size:14px;color:#8E3914;">Ce que vous avez demandé</h2>
-    @foreach ($souhaits as $s)
+    @foreach ($lignes as $l)
         <p style="margin:0 0 4px;font-size:14px;">
-            • {{ $s['article_nom'] ?? 'Article' }}@php $m = array_filter([$s['taille'] ?? null, $s['couleur'] ?? null]); @endphp
-            @if ($m) — {{ implode(' · ', $m) }} @endif × {{ (int) ($s['quantite'] ?? 1) }}
+            • {{ $l['nom'] }}@php $m = array_filter([$l['taille'], $l['couleur']]); @endphp
+            @if ($m) — {{ implode(' · ', $m) }} @endif × {{ $l['quantite'] }}
         </p>
     @endforeach
     @if ($commande->message_client)

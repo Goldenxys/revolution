@@ -49,6 +49,7 @@
         >
             @csrf
             <input type="hidden" name="collection" value="{{ $type }}">
+            <input type="hidden" name="reference" value="{{ old('reference') }}">
 
             {{-- Bloc 1 — Vous --}}
             <fieldset class="space-y-5">

@@ -41,6 +41,9 @@ Route::get('/commande/demande/{reference}/merci', [DemandeController::class, 'co
 Route::get('/commande/demande/{reference}/carte.png', [DemandeController::class, 'carte'])
     ->where('reference', '[A-Z0-9]{6}')
     ->name('commande.demande.carte');
+Route::get('/commande/demande/{reference}/reprendre', [DemandeController::class, 'reprendre'])
+    ->where('reference', '[A-Z0-9]{6}')
+    ->name('commande.demande.reprendre');
 
 // Ancien parcours catalogue self-service (v1) — laissé en ligne deux
 // semaines en secours après la bascule (§11, Phase 6), plus aucun lien

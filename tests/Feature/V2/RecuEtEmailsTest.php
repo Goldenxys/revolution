@@ -189,6 +189,32 @@ class RecuEtEmailsTest extends TestCase
      * Les clientes ne doivent jamais voir le jargon interne « Chiffre
      * d'affaires » sur leurs reçus (PDF, e-mail, WhatsApp).
      */
+    /**
+     * Le lieu de livraison (commune + quartier) doit être lisible sur les
+     * trois reçus client, pas seulement « selon les zones » sans dire où.
+     */
+    public function test_le_lieu_de_livraison_apparait_sur_les_trois_recus(): void
+    {
+        Storage::fake('local');
+        Mail::fake();
+        $gerante = User::factory()->create();
+        [, $commande] = $this->demandeValidable();
+        $commande->update(['quartier' => 'Angré château, près du Groupe scolaire Sainte Marie']);
+
+        $commande->valider($gerante);
+        $commande->refresh();
+
+        $message = $commande->messageWhatsappRecu();
+        $this->assertStringContainsString('Cocody', $message);
+        $this->assertStringContainsString('Angré château', $message);
+
+        $pdfHtml = view('pdf.recu', ['commande' => $commande, 'client' => $commande->client])->render();
+        $this->assertStringContainsString('Angré château', $pdfHtml);
+
+        $mailHtml = (new RecuCommande($commande))->render();
+        $this->assertStringContainsString('Angré château', $mailHtml);
+    }
+
     public function test_le_libelle_chiffre_daffaires_napparait_jamais_cote_cliente(): void
     {
         Storage::fake('local');

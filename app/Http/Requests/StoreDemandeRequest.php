@@ -33,6 +33,10 @@ class StoreDemandeRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // Reprise d'une demande existante (lien de reprise envoyé par
+            // la gérante) — vide pour un dépôt normal.
+            'reference' => ['nullable', 'string', 'size:6'],
+
             // Bloc 1 — Vous
             'nom' => ['required', 'string', 'max:120'],
             'telephone' => ['required', 'string', 'max:30'],
@@ -135,17 +139,22 @@ class StoreDemandeRequest extends FormRequest
             }
 
             // Protection anti-doublon : un même téléphone ne peut pas
-            // déposer deux demandes en moins de 90 secondes (§4.3).
-            $cle = Client::cleDepuisTelephone($this->input('telephone'));
+            // déposer deux demandes en moins de 90 secondes (§4.3). Une
+            // reprise explicite (lien envoyé par la gérante, `reference`
+            // renseignée) n'est jamais un doublon accidentel : elle n'est
+            // pas soumise à cette garde.
+            if (blank($this->input('reference'))) {
+                $cle = Client::cleDepuisTelephone($this->input('telephone'));
 
-            $recente = Commande::query()
-                ->where('statut', 'en_attente')
-                ->whereHas('client', fn ($q) => $q->where('cle', $cle))
-                ->where('created_at', '>=', now()->subSeconds(90))
-                ->exists();
+                $recente = Commande::query()
+                    ->where('statut', 'en_attente')
+                    ->whereHas('client', fn ($q) => $q->where('cle', $cle))
+                    ->where('created_at', '>=', now()->subSeconds(90))
+                    ->exists();
 
-            if ($recente) {
-                $validator->errors()->add('telephone', 'Une demande vient d\'être enregistrée pour ce numéro. Laissez-nous un instant pour la traiter.');
+                if ($recente) {
+                    $validator->errors()->add('telephone', 'Une demande vient d\'être enregistrée pour ce numéro. Laissez-nous un instant pour la traiter.');
+                }
             }
         });
     }

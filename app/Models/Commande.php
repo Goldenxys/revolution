@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -260,6 +261,52 @@ class Commande extends Model
     }
 
     /**
+     * Lieu et modalité de livraison en une phrase — toujours avec la
+     * commune/le quartier choisis, jamais juste « selon les zones » sans
+     * dire où. Utilisé sur les trois reçus client (PDF, e-mail, WhatsApp)
+     * pour que le lieu de livraison soit visible où qu'on regarde.
+     */
+    public function libelleLivraison(): string
+    {
+        $lieu = collect([$this->commune, $this->quartier])->filter()->implode(' · ');
+
+        return $this->estYango()
+            ? 'Yango — '.$lieu.' — '.Francais::dateHeureLongue($this->date_souhaitee, $this->heure_souhaitee)
+            : 'Livreur normal — '.$lieu;
+    }
+
+    /**
+     * Lignes lisibles de ce que la cliente a demandé (souhaits_client),
+     * pour affichage avant toute validation — mails « demande reçue »
+     * (cliente) et « demande à valider » (gérante). Normalise les deux
+     * structures (my_verse : versets ; autre : articles) en un seul format
+     * d'affichage, même logique que ComposerDemande::lignesInitiales() pour
+     * le libellé du verset.
+     *
+     * @return Collection<int, array{nom: string, taille: ?string, couleur: ?string, quantite: int}>
+     */
+    public function lignesSouhaitees(): Collection
+    {
+        $souhaits = $this->souhaits_client ?? [];
+
+        if ($this->estMyVerse()) {
+            return collect($souhaits['versets'] ?? [])->map(fn (array $v) => [
+                'nom' => collect([$v['reference'] ?? null, $v['texte'] ?? null])->filter()->implode(' — ') ?: 'Verset à préciser',
+                'taille' => $v['taille_libelle'] ?? null,
+                'couleur' => $v['couleur_nom'] ?? null,
+                'quantite' => 1,
+            ]);
+        }
+
+        return collect($souhaits['articles'] ?? [])->map(fn (array $a) => [
+            'nom' => $a['nom'] ?? 'Article',
+            'taille' => $a['taille_libelle'] ?? null,
+            'couleur' => $a['couleur_nom'] ?? null,
+            'quantite' => (int) ($a['quantite'] ?? 1),
+        ]);
+    }
+
+    /**
      * Libellé de l'article pour affichage (tableau de bord, mail, export).
      * Une commande née du parcours catalogue (utilise_catalogue) a ses
      * articles dans `lignes` plutôt que dans les colonnes legacy ci-dessous
@@ -361,9 +408,10 @@ class Commande extends Model
         return "Bonjour {$this->client->nom}, voici le reçu de votre commande {$this->reference} :\n\n"
             ."{$lignes}\n\n"
             .'Montant des articles : '.Francais::frais($this->total_articles)."\n"
-            .'Livraison : '.Francais::frais($this->frais_livraison)."\n"
+            .'Frais de livraison : '.Francais::frais($this->frais_livraison)."\n"
             .($this->frais_carte_anniversaire > 0 ? 'Carte anniversaire : '.Francais::frais($this->frais_carte_anniversaire)."\n" : '')
             .'À payer : '.Francais::frais($this->total_a_payer)."\n\n"
+            .'Livraison : '.$this->libelleLivraison()."\n\n"
             .'Votre reçu : '.$this->lienRecuPublic();
     }
 
@@ -376,6 +424,17 @@ class Commande extends Model
         $numero = str_starts_with($numero, '225') ? $numero : '225'.ltrim($numero, '0');
 
         return 'https://wa.me/'.$numero.'?text='.rawurlencode($this->messageWhatsappRecu());
+    }
+
+    /**
+     * Lien public vers le formulaire de demande, pré-rempli avec tout ce
+     * que la cliente a déjà saisi — pour que la gérante le lui renvoie (où
+     * elle veut : WhatsApp, SMS…) si elle s'est trompée ou a oublié un
+     * article, et qu'elle complète/corrige sans tout retaper.
+     */
+    public function lienReprise(): string
+    {
+        return route('commande.demande.reprendre', $this->reference);
     }
 
     /**

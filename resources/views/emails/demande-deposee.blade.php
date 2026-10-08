@@ -1,10 +1,7 @@
 @php
     use App\Support\Francais;
 
-    $souhaits = $commande->souhaits_client ?? [];
-    $livraisonLigne = $commande->estYango()
-        ? 'Yango — '.Francais::dateHeureLongue($commande->date_souhaitee, $commande->heure_souhaitee)
-        : 'Livreur normal — selon les zones';
+    $lignes = $commande->lignesSouhaitees();
 @endphp
 <!DOCTYPE html>
 <html lang="fr">
@@ -39,11 +36,11 @@
 
 <tr><td style="padding:12px 32px;">
     <h2 style="margin:0 0 6px;font-size:14px;color:#8E3914;">Ses souhaits</h2>
-    @forelse ($souhaits as $s)
+    @forelse ($lignes as $l)
         <p style="margin:0 0 4px;font-size:14px;line-height:1.5;">
-            • {{ $s['article_nom'] ?? 'Article' }}@php $m = array_filter([$s['taille'] ?? null, $s['couleur'] ?? null]); @endphp
+            • {{ $l['nom'] }}@php $m = array_filter([$l['taille'], $l['couleur']]); @endphp
             @if ($m) — {{ implode(' · ', $m) }} @endif
-            × {{ (int) ($s['quantite'] ?? 1) }}
+            × {{ $l['quantite'] }}
         </p>
     @empty
         <p style="margin:0;font-size:14px;color:#6B6157;">Aucun article coché.</p>
@@ -56,8 +53,7 @@
 <tr><td style="padding:12px 32px;">
     <h2 style="margin:0 0 6px;font-size:14px;color:#8E3914;">Livraison</h2>
     <p style="margin:0;font-size:14px;line-height:1.6;">
-        {{ $commande->commune }}@if ($commande->quartier) · {{ $commande->quartier }}@endif<br>
-        {{ $livraisonLigne }}<br>
+        {{ $commande->libelleLivraison() }}<br>
         <span style="color:#6B6157;">Frais estimés {{ Francais::frais($commande->frais_livraison) }} — hors chiffre d'affaires</span>
     </p>
 </td></tr>

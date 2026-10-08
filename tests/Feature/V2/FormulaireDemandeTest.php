@@ -3,6 +3,7 @@
 namespace Tests\Feature\V2;
 
 use App\Mail\DemandeDeposee;
+use App\Mail\DemandeRecue;
 use App\Models\Article;
 use App\Models\ArticleVariante;
 use App\Models\Client;
@@ -237,6 +238,62 @@ class FormulaireDemandeTest extends TestCase
         $this->assertSame(0, Commande::count());
     }
 
+    /**
+     * Bug constaté en production (capture d'écran) : les mails « demande
+     * reçue » (cliente) et « demande à valider » (gérante) affichaient
+     * toujours « Article × 1 » générique, quel que soit l'article tapé —
+     * souhaits_client::articles n'avait jamais été branché sur ces deux
+     * gabarits lors de l'enrichissement du formulaire. La référence ne doit
+     * plus apparaître côté cliente (texte visible, pas juste un jargon).
+     */
+    public function test_le_mail_cliente_affiche_les_vrais_articles_sans_reference(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        User::factory()->create();
+
+        $this->post(route('commande.demande.store'), [
+            'nom' => 'Tina Aman', 'telephone' => '0102030408', 'email' => 'tina@example.com',
+            'collection' => 'autre',
+            'articles' => [
+                ['nom' => 'Robe Grâce', 'article_id' => null, 'taille_id' => null, 'couleur_id' => null, 'quantite' => 2],
+            ],
+            'precisions' => 'Je veux un truc simple',
+            'commune' => 'Cocody', 'mode_livraison' => 'livreur',
+        ])->assertRedirect();
+
+        $commande = Commande::first();
+        $html = (new DemandeRecue($commande))->render();
+
+        $this->assertStringContainsString('Robe Grâce', $html);
+        $this->assertStringContainsString('× 2', $html);
+        $this->assertStringNotContainsString('Article ×', $html);
+        $this->assertStringNotContainsString('Référence', $html);
+    }
+
+    public function test_le_mail_gerante_affiche_les_vrais_articles(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        User::factory()->create();
+
+        $this->post(route('commande.demande.store'), [
+            'nom' => 'Tina Aman', 'telephone' => '0102030408',
+            'collection' => 'autre',
+            'articles' => [
+                ['nom' => 'Robe Grâce', 'article_id' => null, 'taille_id' => null, 'couleur_id' => null, 'quantite' => 2],
+            ],
+            'commune' => 'Cocody', 'mode_livraison' => 'livreur',
+        ])->assertRedirect();
+
+        $commande = Commande::first();
+        $html = (new DemandeDeposee($commande, 'https://example.test/compositeur'))->render();
+
+        $this->assertStringContainsString('Robe Grâce', $html);
+        $this->assertStringContainsString('× 2', $html);
+        $this->assertStringNotContainsString('Article ×', $html);
+    }
+
     public function test_anti_doublon_90_secondes(): void
     {
         Mail::fake();
@@ -343,5 +400,142 @@ class FormulaireDemandeTest extends TestCase
         ]);
 
         $this->get(route('commande.demande.merci', $commande->reference))->assertNotFound();
+    }
+
+    /**
+     * Lien de reprise (ComposerDemande → WhatsApp) : rouvre le bon
+     * formulaire, pré-rempli avec tout ce que la cliente a déjà saisi —
+     * via session()->flashInput(), lu par old() comme n'importe quel
+     * retour de validation échouée (resources/views/commande/demande.blade.php).
+     */
+    public function test_le_lien_de_reprise_preremplit_le_formulaire_my_verse(): void
+    {
+        $client = Client::create([
+            'cle' => Client::cleDepuisTelephone('0102030405'),
+            'nom' => 'Aya Kouassi', 'telephone' => '0102030405', 'email' => 'aya@example.com',
+            'statut' => 'prospect', 'numero_client' => 'REV-C-0001', 'nb_commandes' => 0,
+        ]);
+        $commande = Commande::create([
+            'client_id' => $client->id, 'collection' => 'my_verse',
+            'commune' => 'Cocody', 'frais_livraison' => 1500, 'mode_livraison' => 'livreur',
+            'statut' => 'en_attente',
+            'souhaits_client' => [
+                'collection' => 'my_verse',
+                'versets' => [[
+                    'reference' => 'Philippiens 4:13', 'texte' => null,
+                    'taille_id' => null, 'taille_libelle' => null, 'couleur_id' => null, 'couleur_nom' => null,
+                ]],
+            ],
+        ]);
+
+        $this->get(route('commande.demande.reprendre', $commande->reference))
+            ->assertRedirect(route('commande.demande.creer'));
+
+        $this->get(route('commande.demande.creer'))
+            ->assertOk()
+            ->assertSee('Aya Kouassi')
+            ->assertSee('Philippiens 4:13')
+            ->assertSee($commande->reference);
+    }
+
+    public function test_le_lien_de_reprise_preremplit_le_formulaire_autre_collection(): void
+    {
+        $client = Client::create([
+            'cle' => Client::cleDepuisTelephone('0102030406'),
+            'nom' => 'Koffi', 'telephone' => '0102030406',
+            'statut' => 'prospect', 'numero_client' => 'REV-C-0002', 'nb_commandes' => 0,
+        ]);
+        $commande = Commande::create([
+            'client_id' => $client->id, 'collection' => 'autre',
+            'commune' => 'Yopougon', 'frais_livraison' => 1500, 'mode_livraison' => 'livreur',
+            'statut' => 'en_attente',
+            'souhaits_client' => [
+                'collection' => 'autre',
+                'articles' => [[
+                    'nom' => 'Le pull vu sur Instagram', 'article_id' => null,
+                    'taille_id' => null, 'taille_libelle' => null, 'couleur_id' => null, 'couleur_nom' => null,
+                    'quantite' => 1,
+                ]],
+            ],
+        ]);
+
+        $this->get(route('commande.demande.reprendre', $commande->reference))
+            ->assertRedirect(route('commande.demande.autre'));
+
+        $this->get(route('commande.demande.autre'))
+            ->assertOk()
+            ->assertSee('Koffi')
+            ->assertSee('Le pull vu sur Instagram');
+    }
+
+    public function test_le_lien_de_reprise_sur_une_demande_deja_traitee_redirige_vers_laccueil(): void
+    {
+        $client = Client::create(['cle' => '00000010', 'nom' => 'X', 'telephone' => '0700000010', 'nb_commandes' => 0]);
+        $commande = Commande::create([
+            'client_id' => $client->id, 'commune' => 'Cocody', 'frais_livraison' => 1500,
+            'mode_livraison' => 'livreur', 'statut' => 'validee', 'validee_at' => now(),
+        ]);
+
+        $this->get(route('commande.demande.reprendre', $commande->reference))
+            ->assertRedirect(route('accueil'));
+    }
+
+    public function test_resoumission_avec_reference_met_a_jour_la_meme_commande(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        User::factory()->create();
+
+        $client = Client::create([
+            'cle' => Client::cleDepuisTelephone('0102030405'),
+            'nom' => 'Aya Kouassi', 'telephone' => '0102030405',
+            'statut' => 'prospect', 'numero_client' => 'REV-C-0001', 'nb_commandes' => 0,
+        ]);
+        $commande = Commande::create([
+            'client_id' => $client->id, 'collection' => 'autre',
+            'commune' => 'Cocody', 'frais_livraison' => 1500, 'mode_livraison' => 'livreur',
+            'statut' => 'en_attente',
+            'souhaits_client' => ['collection' => 'autre', 'articles' => []],
+        ]);
+
+        $this->post(route('commande.demande.store'), [
+            'reference' => $commande->reference,
+            'nom' => 'Aya Kouassi', 'telephone' => '0102030405',
+            'collection' => 'autre',
+            'articles' => [
+                ['nom' => 'Le pull oublié', 'article_id' => null, 'taille_id' => null, 'couleur_id' => null, 'quantite' => 1],
+            ],
+            'commune' => 'Cocody', 'mode_livraison' => 'livreur',
+        ])->assertRedirect(route('commande.demande.merci', $commande->reference));
+
+        $this->assertSame(1, Commande::count());
+        $commande->refresh();
+        $this->assertSame('Le pull oublié', $commande->souhaits_client['articles'][0]['nom']);
+        $this->assertDatabaseHas('commande_journal', ['commande_id' => $commande->id, 'evenement' => 'modifiee_par_cliente']);
+    }
+
+    /**
+     * La garde anti-doublon (§4.3, 90 secondes) protège contre une double
+     * soumission accidentelle — elle ne doit jamais bloquer une résoumission
+     * volontaire via le lien de reprise.
+     */
+    public function test_resoumission_avec_reference_nest_pas_bloquee_par_lanti_doublon(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        User::factory()->create();
+
+        $payload = [
+            'nom' => 'Aya Kouassi', 'telephone' => '0102030405',
+            'collection' => 'autre', 'commune' => 'Cocody', 'mode_livraison' => 'livreur',
+        ];
+
+        $this->post(route('commande.demande.store'), $payload)->assertRedirect();
+        $commande = Commande::first();
+
+        $this->post(route('commande.demande.store'), $payload + ['reference' => $commande->reference])
+            ->assertRedirect(route('commande.demande.merci', $commande->reference));
+
+        $this->assertSame(1, Commande::count());
     }
 }
