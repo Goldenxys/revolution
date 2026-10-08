@@ -13,6 +13,7 @@ use App\Models\Couleur;
 use App\Models\Taille;
 use App\Support\Francais;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Section;
@@ -257,40 +258,42 @@ class ComposerDemande extends Page implements HasForms
         return [
             GuideAction::make('composer'),
 
-            Action::make('reprendre_souhaits')
-                ->label('Reprendre la demande de la cliente')
-                ->icon('heroicon-o-arrow-down-on-square-stack')
-                ->color('gray')
-                ->action(function () {
-                    $this->data['lignes'] = $this->lignesInitiales();
-                    $this->form->fill($this->data);
+            ActionGroup::make([
+                Action::make('reprendre_souhaits')
+                    ->label('Reprendre la demande de la cliente')
+                    ->icon('heroicon-o-arrow-down-on-square-stack')
+                    ->action(function () {
+                        $this->data['lignes'] = $this->lignesInitiales();
+                        $this->form->fill($this->data);
 
-                    Notification::make()
-                        ->title('Demande reprise')
-                        ->body('Taille, couleur et verset repris de la demande. Choisissez l\'article et vérifiez le prix.')
-                        ->success()
-                        ->send();
-                }),
+                        Notification::make()
+                            ->title('Demande reprise')
+                            ->body('Taille, couleur et verset repris de la demande. Choisissez l\'article et vérifiez le prix.')
+                            ->success()
+                            ->send();
+                    }),
 
-            Action::make('lien_reprise')
-                ->label('Copier le lien de reprise pour la cliente')
-                ->icon('heroicon-o-link')
-                ->color('gray')
-                ->modalHeading('Lien de reprise de la demande')
-                ->modalDescription('À envoyer où vous voulez (WhatsApp, SMS…) : la cliente retrouve sa demande déjà remplie et peut la compléter ou la corriger.')
-                ->modalSubmitAction(false)
-                ->modalCancelActionLabel('Fermer')
-                ->modalContent(fn (): Htmlable => new HtmlString(
-                    '<div x-data="{ lien: '.e(json_encode($this->record->lienReprise())).', copie: false }" class="flex items-center gap-2">
-                        <input type="text" readonly x-model="lien" x-on:click="$el.select()"
-                               class="fi-input flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm">
-                        <button type="button"
-                                x-on:click="navigator.clipboard.writeText(lien); copie = true; setTimeout(() => copie = false, 1500)"
-                                class="fi-btn fi-btn-size-md inline-flex items-center gap-1 rounded-lg bg-gray-800 dark:bg-gray-200 px-3 py-2 text-sm font-medium text-white dark:text-gray-800">
-                            <span x-text="copie ? \'Copié !\' : \'Copier\'"></span>
-                        </button>
-                    </div>'
-                )),
+                Action::make('lien_reprise')
+                    ->label('Copier le lien de reprise pour la cliente')
+                    ->icon('heroicon-o-link')
+                    ->modalHeading('Lien de reprise de la demande')
+                    ->modalDescription('À envoyer où vous voulez (WhatsApp, SMS…) : la cliente retrouve sa demande déjà remplie et peut la compléter ou la corriger.')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Fermer')
+                    ->modalContent(fn (): Htmlable => $this->modalLienCopiable($this->record->lienReprise())),
+
+                Action::make('lien_interne')
+                    ->label('Copier le lien interne (pour une collègue)')
+                    ->icon('heroicon-o-clipboard-document')
+                    ->modalHeading('Lien interne vers cette page')
+                    ->modalDescription('Accès direct à cette page de composition — à usage interne seulement, ne jamais envoyer à la cliente.')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Fermer')
+                    ->modalContent(fn (): Htmlable => $this->modalLienCopiable(static::getUrl(['record' => $this->record]))),
+            ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->color('gray'),
 
             Action::make('valider')
                 ->label('Valider la commande')
@@ -501,6 +504,26 @@ class ComposerDemande extends Page implements HasForms
             .'<div class="border-t border-gray-200 dark:border-white/10 my-1"></div>'
             .$l('À encaisser', Francais::frais($ca + $frais + $carteAnniversaire), true)
             .'</div>'
+        );
+    }
+
+    /**
+     * Petit widget réutilisable : un champ en lecture seule + un bouton
+     * « Copier » (presse-papiers) — sert au lien de reprise (cliente) comme
+     * au lien interne vers cette page (collègue), seul le lien change.
+     */
+    private function modalLienCopiable(string $lien): Htmlable
+    {
+        return new HtmlString(
+            '<div x-data="{ lien: '.e(json_encode($lien)).', copie: false }" class="flex items-center gap-2">
+                <input type="text" readonly x-model="lien" x-on:click="$el.select()"
+                       class="fi-input flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm">
+                <button type="button"
+                        x-on:click="navigator.clipboard.writeText(lien); copie = true; setTimeout(() => copie = false, 1500)"
+                        class="fi-btn fi-btn-size-md inline-flex items-center gap-1 rounded-lg bg-gray-800 dark:bg-gray-200 px-3 py-2 text-sm font-medium text-white dark:text-gray-800">
+                    <span x-text="copie ? \'Copié !\' : \'Copier\'"></span>
+                </button>
+            </div>'
         );
     }
 
