@@ -14,6 +14,7 @@ use App\Models\Taille;
 use App\Support\Francais;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
+use Filament\Forms\Components\Actions\Action as FormAction;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Section;
@@ -280,16 +281,7 @@ class ComposerDemande extends Page implements HasForms
                     ->modalDescription('À envoyer où vous voulez (WhatsApp, SMS…) : la cliente retrouve sa demande déjà remplie et peut la compléter ou la corriger.')
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Fermer')
-                    ->modalContent(fn (): Htmlable => $this->modalLienCopiable($this->record->lienReprise())),
-
-                Action::make('lien_interne')
-                    ->label('Copier le lien interne (pour une collègue)')
-                    ->icon('heroicon-o-clipboard-document')
-                    ->modalHeading('Lien interne vers cette page')
-                    ->modalDescription('Accès direct à cette page de composition — à usage interne seulement, ne jamais envoyer à la cliente.')
-                    ->modalSubmitAction(false)
-                    ->modalCancelActionLabel('Fermer')
-                    ->modalContent(fn (): Htmlable => $this->modalLienCopiable(static::getUrl(['record' => $this->record]))),
+                    ->form(fn () => $this->modalLienCopiable($this->record->lienReprise())),
             ])
                 ->label('Actions')
                 ->icon('heroicon-m-ellipsis-vertical')
@@ -508,23 +500,30 @@ class ComposerDemande extends Page implements HasForms
     }
 
     /**
-     * Petit widget réutilisable : un champ en lecture seule + un bouton
-     * « Copier » (presse-papiers) — sert au lien de reprise (cliente) comme
-     * au lien interne vers cette page (collègue), seul le lien change.
+     * Champ en lecture seule avec bouton « copier » intégré (suffixe natif
+     * Filament, pas de classes Tailwind maison : le thème de l'Espace
+     * RÉVOLUTION a son propre bundle CSS qui ne scanne pas ce fichier —
+     * resources/css/filament/admin/theme.css — donc tout style personnalisé
+     * écrit ici resterait non compilé. Les composants Filament natifs
+     * (TextInput, Actions\Action) sont toujours stylés et responsives.
      */
-    private function modalLienCopiable(string $lien): Htmlable
+    private function modalLienCopiable(string $lien): array
     {
-        return new HtmlString(
-            '<div x-data="{ lien: '.e(json_encode($lien)).', copie: false }" class="flex items-center gap-2">
-                <input type="text" readonly x-model="lien" x-on:click="$el.select()"
-                       class="fi-input flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm">
-                <button type="button"
-                        x-on:click="navigator.clipboard.writeText(lien); copie = true; setTimeout(() => copie = false, 1500)"
-                        class="fi-btn fi-btn-size-md inline-flex items-center gap-1 rounded-lg bg-gray-800 dark:bg-gray-200 px-3 py-2 text-sm font-medium text-white dark:text-gray-800">
-                    <span x-text="copie ? \'Copié !\' : \'Copier\'"></span>
-                </button>
-            </div>'
-        );
+        return [
+            TextInput::make('lien')
+                ->label(false)
+                ->default($lien)
+                ->readOnly()
+                ->extraInputAttributes(['onclick' => 'this.select()'])
+                ->suffixAction(
+                    FormAction::make('copier')
+                        ->icon('heroicon-m-clipboard-document')
+                        ->action(fn () => Notification::make()->title('Lien copié !')->success()->send())
+                        ->extraAttributes([
+                            'x-on:click' => 'navigator.clipboard.writeText('.json_encode($lien).')',
+                        ]),
+                ),
+        ];
     }
 
     public function remiseProposee(): int

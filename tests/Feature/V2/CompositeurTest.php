@@ -309,6 +309,24 @@ class CompositeurTest extends TestCase
             ->assertSee('articles/couronne.png', false);
     }
 
+    /**
+     * Le bouton « Copier le lien de reprise » (menu Actions) ouvre un
+     * champ en lecture seule pré-rempli avec Commande::lienReprise() —
+     * composant Filament natif (pas de HTML/CSS maison, voir
+     * modalLienCopiable()) pour rester stylé et responsive.
+     */
+    public function test_le_lien_de_reprise_souvre_sans_erreur_et_preremplit_le_lien(): void
+    {
+        $gerante = User::factory()->create();
+        [, $commande] = $this->demande();
+
+        Livewire::actingAs($gerante)
+            ->test(ComposerDemande::class, ['record' => $commande->getKey()])
+            ->mountAction('lien_reprise')
+            ->assertActionMounted('lien_reprise')
+            ->assertActionDataSet(['lien' => $commande->lienReprise()]);
+    }
+
     public function test_une_demande_deja_validee_redirige_vers_sa_fiche(): void
     {
         $gerante = User::factory()->create();
