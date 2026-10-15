@@ -64,6 +64,11 @@ class ClientResource extends Resource
                     ->label('Commune')
                     ->placeholder('—'),
 
+                TextColumn::make('naissance')
+                    ->label('Anniversaire')
+                    ->state(fn (Client $client) => $client->libelleNaissance())
+                    ->placeholder('—'),
+
                 TextColumn::make('nb_commandes')
                     ->label('Commandes')
                     ->numeric()
@@ -105,6 +110,8 @@ class ClientResource extends Resource
                     TextEntry::make('telephone')->label('Téléphone'),
                     TextEntry::make('email')->label('Email')->placeholder('—'),
                     TextEntry::make('commune')->label('Commune')->placeholder('—'),
+                    TextEntry::make('naissance')->label('Anniversaire')
+                        ->state(fn (Client $client) => $client->libelleNaissance())->placeholder('—'),
                 ]),
 
             InfolistSection::make('Fidélité')

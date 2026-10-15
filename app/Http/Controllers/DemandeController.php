@@ -224,6 +224,8 @@ class DemandeController extends Controller
             'nom' => $client->nom,
             'telephone' => $client->telephone,
             'email' => $client->email,
+            'naissance_jour' => $client->naissance_jour,
+            'naissance_mois' => $client->naissance_mois,
             'commune' => $commande->commune,
             'quartier' => $commande->quartier,
             'mode_livraison' => $commande->mode_livraison,

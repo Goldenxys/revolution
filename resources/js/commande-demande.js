@@ -61,6 +61,8 @@ export default function commandeDemande(config) {
         nom: config.nom || '',
         telephone: config.telephone || '',
         email: config.email || '',
+        naissanceJour: config.naissanceJour || '',
+        naissanceMois: config.naissanceMois || '',
         commune: config.commune || '',
         quartier: config.quartier || '',
         modeLivraison: config.modeLivraison || '',

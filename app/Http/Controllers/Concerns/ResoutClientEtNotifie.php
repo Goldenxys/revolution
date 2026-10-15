@@ -60,6 +60,14 @@ trait ResoutClientEtNotifie
             $client->email = $donnees['email'];
         }
 
+        // Jour + mois seulement, jamais l'année. Une seule valeur par
+        // cliente (clients.naissance_jour/naissance_mois) : jamais écrasée
+        // par un formulaire laissé vide lors d'une commande suivante.
+        if (! empty($donnees['naissance_jour']) && ! empty($donnees['naissance_mois'])) {
+            $client->naissance_jour = $donnees['naissance_jour'];
+            $client->naissance_mois = $donnees['naissance_mois'];
+        }
+
         $client->commune = $donnees['commune'];
 
         return $client;

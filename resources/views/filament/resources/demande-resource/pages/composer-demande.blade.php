@@ -33,6 +33,12 @@
                             <dd class="text-right break-all">{{ $client->email }}</dd>
                         </div>
                     @endif
+                    @if ($client?->libelleNaissance())
+                        <div class="flex justify-between gap-3">
+                            <dt class="text-gray-500">Anniversaire</dt>
+                            <dd class="text-right">{{ $client->libelleNaissance() }}</dd>
+                        </div>
+                    @endif
                     <div class="flex justify-between gap-3">
                         <dt class="text-gray-500">Historique</dt>
                         <dd class="text-right">

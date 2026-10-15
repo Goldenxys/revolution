@@ -62,12 +62,22 @@ class StoreDemandeRequest extends FormRequest
 
             'precisions' => ['nullable', 'string', 'max:500'],
 
-            // Bloc 3 — La livraison (inchangé)
+            // Date de naissance (jour + mois seulement, jamais l'année) —
+            // facultative, rattachée à la cliente (clients.naissance_jour/
+            // naissance_mois), jamais à une commande précise : une seule
+            // valeur par cliente, jamais redemandée/dupliquée à chaque
+            // dépôt (voir ResoutClientEtNotifie::trouverOuCreerClient()).
+            'naissance_jour' => ['nullable', 'required_with:naissance_mois', 'integer', 'between:1,31'],
+            'naissance_mois' => ['nullable', 'required_with:naissance_jour', 'integer', 'between:1,12'],
+
+            // Bloc 3 — La livraison
             'commune' => ['required', Rule::in(array_keys(config('revolution.communes')))],
             'quartier' => ['nullable', 'string', 'max:190'],
             'mode_livraison' => ['required', Rule::in(['yango', 'livreur'])],
+            // Facultative pour un livreur normal (jour qui arrange la
+            // cliente), obligatoire pour Yango (créneau précis avec l'heure).
             'date_souhaitee' => [
-                'prohibited_unless:mode_livraison,yango',
+                'nullable',
                 'required_if:mode_livraison,yango',
                 'date',
                 'after_or_equal:today',
@@ -110,6 +120,14 @@ class StoreDemandeRequest extends FormRequest
                 $validator->errors()->add('telephone', 'Le numéro doit contenir au moins 8 chiffres.');
 
                 return;
+            }
+
+            // Combinaison jour/mois impossible (31 février…) — testée sur
+            // une année bissextile pour laisser passer le 29 février.
+            $jour = $this->input('naissance_jour');
+            $mois = $this->input('naissance_mois');
+            if (filled($jour) && filled($mois) && ! checkdate((int) $mois, (int) $jour, 2024)) {
+                $validator->errors()->add('naissance_jour', 'Cette date n\'existe pas.');
             }
 
             // Chaque verset doit porter une référence OU un texte.

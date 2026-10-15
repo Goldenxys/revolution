@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -22,6 +23,8 @@ class Client extends Model
         'statut',
         'numero_client',
         'ca_cumule',
+        'naissance_jour',
+        'naissance_mois',
     ];
 
     protected $casts = [
@@ -29,6 +32,8 @@ class Client extends Model
         'premiere_commande_at' => 'datetime',
         'derniere_commande_at' => 'datetime',
         'ca_cumule' => 'integer',
+        'naissance_jour' => 'integer',
+        'naissance_mois' => 'integer',
     ];
 
     public function commandes(): HasMany
@@ -164,5 +169,36 @@ class Client extends Model
     public function getCommandesRestantesAttribute(): int
     {
         return static::commandesRestantesPourPalier($this->palier);
+    }
+
+    /**
+     * « 15 mars » — null si la cliente n'a pas renseigné sa date de
+     * naissance (jour + mois seulement, jamais l'année : voir la migration
+     * add_naissance_a_clients_table).
+     */
+    public function libelleNaissance(): ?string
+    {
+        if (blank($this->naissance_jour) || blank($this->naissance_mois)) {
+            return null;
+        }
+
+        $mois = [1 => 'janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+        return $this->naissance_jour.' '.$mois[$this->naissance_mois];
+    }
+
+    /**
+     * Clientes dont l'anniversaire tombe dans exactement N jours — sert
+     * l'alerte quotidienne à la gérante (voir AlerterAnniversairesProches).
+     * Comparaison sur (mois, jour) uniquement : l'année de naissance n'est
+     * jamais demandée/stockée.
+     */
+    public function scopeAnniversaireDansJours(Builder $query, int $jours): Builder
+    {
+        $cible = now()->addDays($jours);
+
+        return $query
+            ->where('naissance_mois', $cible->month)
+            ->where('naissance_jour', $cible->day);
     }
 }

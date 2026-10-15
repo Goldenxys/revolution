@@ -53,7 +53,8 @@
                 <h2 class="font-serif text-xl font-semibold text-encre mb-3">3. Zone de livraison</h2>
                 <p>
                     Les livraisons sont assurées dans l'agglomération d'Abidjan (Yopougon, Cocody, Koumassi, Treichville,
-                    Adjamé, Marcory, Bingerville, Faya, Jules Vernes, Grand-Bassam et communes environnantes), par
+                    Marcory, Grand-Bassam, Bingerville, Faya, Jules Vernes, Adjamé, Port-Bouët, Abobo, Attécoubé,
+                    Plateau, Anyama, Songon et communes environnantes), par
                     coursier Yango ou par livreur partenaire selon le mode choisi par la cliente lors de la commande.
                     Les frais de livraison affichés sur le Site sont fixés par commune et peuvent évoluer ; le tarif
                     appliqué est celui en vigueur au moment de l'enregistrement de la commande.

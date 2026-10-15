@@ -35,6 +35,8 @@
                 nom: @js(old('nom')),
                 telephone: @js(old('telephone')),
                 email: @js(old('email')),
+                naissanceJour: @js(old('naissance_jour')),
+                naissanceMois: @js(old('naissance_mois')),
                 commune: @js(old('commune')),
                 quartier: @js(old('quartier')),
                 modeLivraison: @js(old('mode_livraison')),
@@ -85,6 +87,27 @@
                            class="w-full border {{ $errors->has('email') ? 'border-rouille' : 'border-filet' }} bg-carte px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
                     <p class="mt-1.5 text-[13px] text-texte-secondaire">Pour recevoir votre reçu de commande et votre carte de fidélité.</p>
                     @error('email')<p class="mt-1.5 text-xs text-rouille">{{ $message }}</p>@enderror
+                </div>
+
+                <div>
+                    <label class="block text-sm mb-2">Date de naissance <span class="text-texte-secondaire text-xs">(facultatif, jour et mois seulement)</span></label>
+                    <div class="grid grid-cols-2 gap-4">
+                        <select name="naissance_jour" x-model="naissanceJour"
+                                class="w-full border {{ $errors->has('naissance_jour') ? 'border-rouille' : 'border-filet' }} bg-carte px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
+                            <option value="">Jour</option>
+                            @for ($jour = 1; $jour <= 31; $jour++)
+                                <option value="{{ $jour }}">{{ $jour }}</option>
+                            @endfor
+                        </select>
+                        <select name="naissance_mois" x-model="naissanceMois"
+                                class="w-full border {{ $errors->has('naissance_mois') ? 'border-rouille' : 'border-filet' }} bg-carte px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
+                            <option value="">Mois</option>
+                            @foreach (['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'] as $i => $nomMois)
+                                <option value="{{ $i + 1 }}">{{ ucfirst($nomMois) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    @error('naissance_jour')<p class="mt-1.5 text-xs text-rouille">{{ $message }}</p>@enderror
                 </div>
             </fieldset>
 
@@ -285,22 +308,24 @@
                     @error('mode_livraison')<p class="mt-1.5 text-xs text-rouille">{{ $message }}</p>@enderror
                 </div>
 
+                <div>
+                    <label for="date_souhaitee" class="block text-sm mb-2">
+                        Date de livraison souhaitée <span x-show="estYango" class="text-rouille">*</span>
+                    </label>
+                    <input type="date" id="date_souhaitee" name="date_souhaitee"
+                           :min="new Date().toISOString().slice(0,10)" x-model="dateSouhaitee"
+                           class="w-full border {{ $errors->has('date_souhaitee') ? 'border-rouille' : 'border-filet' }} bg-carte px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
+                    @error('date_souhaitee')<p class="mt-1.5 text-xs text-rouille">{{ $message }}</p>@enderror
+                    <p class="mt-1.5 text-[13px] text-texte-secondaire" x-show="dateLongue" x-text="dateLongue"></p>
+                    <p class="mt-1.5 text-[13px] text-texte-secondaire" x-show="!estYango" x-cloak>Facultatif — un jour qui vous arrange.</p>
+                </div>
+
                 <template x-if="estYango">
-                    <div class="space-y-5" x-cloak>
-                        <div>
-                            <label for="date_souhaitee" class="block text-sm mb-2">Date souhaitée</label>
-                            <input type="date" id="date_souhaitee" name="date_souhaitee"
-                                   :min="new Date().toISOString().slice(0,10)" x-model="dateSouhaitee"
-                                   class="w-full border {{ $errors->has('date_souhaitee') ? 'border-rouille' : 'border-filet' }} bg-carte px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
-                            @error('date_souhaitee')<p class="mt-1.5 text-xs text-rouille">{{ $message }}</p>@enderror
-                            <p class="mt-1.5 text-[13px] text-texte-secondaire" x-show="dateLongue" x-text="dateLongue"></p>
-                        </div>
-                        <div>
-                            <label for="heure_souhaitee" class="block text-sm mb-2">Heure souhaitée</label>
-                            <input type="time" id="heure_souhaitee" name="heure_souhaitee" x-model="heureSouhaitee"
-                                   class="w-full border {{ $errors->has('heure_souhaitee') ? 'border-rouille' : 'border-filet' }} bg-carte px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
-                            @error('heure_souhaitee')<p class="mt-1.5 text-xs text-rouille">{{ $message }}</p>@enderror
-                        </div>
+                    <div x-cloak>
+                        <label for="heure_souhaitee" class="block text-sm mb-2">Heure souhaitée <span class="text-rouille">*</span></label>
+                        <input type="time" id="heure_souhaitee" name="heure_souhaitee" x-model="heureSouhaitee"
+                               class="w-full border {{ $errors->has('heure_souhaitee') ? 'border-rouille' : 'border-filet' }} bg-carte px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
+                        @error('heure_souhaitee')<p class="mt-1.5 text-xs text-rouille">{{ $message }}</p>@enderror
                     </div>
                 </template>
 
