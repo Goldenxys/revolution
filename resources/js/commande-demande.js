@@ -84,6 +84,7 @@ export default function commandeDemande(config) {
                 ? anciensVersets.map((v) => ({
                     reference: v.reference ?? '',
                     texte: v.texte ?? '',
+                    type_vetement: v.type_vetement ?? '',
                     taille_id: v.taille_id ?? '',
                     couleur_id: v.couleur_id ?? '',
                 }))
@@ -127,7 +128,7 @@ export default function commandeDemande(config) {
         },
 
         versetVide() {
-            return { reference: '', texte: '', taille_id: '', couleur_id: '' };
+            return { reference: '', texte: '', type_vetement: '', taille_id: '', couleur_id: '' };
         },
 
         ajouterVerset() {

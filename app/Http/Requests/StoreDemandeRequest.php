@@ -47,6 +47,9 @@ class StoreDemandeRequest extends FormRequest
             'versets' => ['exclude_unless:collection,my_verse', 'required', 'array', 'min:1', 'max:10'],
             'versets.*.reference' => ['nullable', 'string', 'max:120'],
             'versets.*.texte' => ['nullable', 'string', 'max:2000'],
+            // Vêtement souhaité — à la différence de taille/couleur, un
+            // verset sans vêtement choisi n'a pas de sens : obligatoire.
+            'versets.*.type_vetement' => ['required', Rule::in(['tee_shirt', 'pull'])],
             'versets.*.taille_id' => ['nullable', 'integer', 'exists:tailles,id'],
             'versets.*.couleur_id' => ['nullable', 'integer', 'exists:couleurs,id'],
 
@@ -101,8 +104,9 @@ class StoreDemandeRequest extends FormRequest
             'email.email' => 'Cet e-mail n\'a pas l\'air valide.',
             'collection.required' => 'Type de commande manquant.',
             'collection.in' => 'Type de commande manquant.',
-            'versets.required' => 'Indiquez au moins un verset pour votre tee-shirt My Verse.',
-            'versets.min' => 'Indiquez au moins un verset pour votre tee-shirt My Verse.',
+            'versets.required' => 'Indiquez au moins un verset pour votre vêtement My Verse.',
+            'versets.min' => 'Indiquez au moins un verset pour votre vêtement My Verse.',
+            'versets.*.type_vetement.required' => 'Indiquez si vous voulez un tee-shirt ou un pull pour ce verset.',
             'commune.required' => 'Merci de choisir votre commune de livraison.',
             'commune.in' => 'Cette commune n\'est pas dans notre liste de livraison.',
             'mode_livraison.required' => 'Merci de choisir un mode de livraison.',

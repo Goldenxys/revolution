@@ -15,6 +15,7 @@ use App\Support\Francais;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\Actions\Action as FormAction;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Section;
@@ -109,6 +110,17 @@ class ComposerDemande extends Page implements HasForms
                             // select qui retombe à la ligne, quantité/prix écrasés).
                             ->columns(['sm' => 2, 'lg' => 12])
                             ->schema([
+                                Hidden::make('type_vetement_demande'),
+
+                                Placeholder::make('type_vetement_info')
+                                    ->hiddenLabel()
+                                    ->columnSpanFull()
+                                    ->visible(fn (Get $get) => filled($get('type_vetement_demande')))
+                                    ->content(fn (Get $get): Htmlable => new HtmlString(
+                                        '<span class="text-sm"><span class="text-gray-500">Vêtement souhaité : </span>'
+                                        .e($get('type_vetement_demande') === 'pull' ? 'Pull' : 'Tee-shirt').'</span>'
+                                    )),
+
                                 Select::make('article_id')
                                     ->label('Article')
                                     ->options(static::optionsArticles())
@@ -555,6 +567,7 @@ class ComposerDemande extends Page implements HasForms
                     $ligne = $this->ligneVide();
                     $ligne['verset'] = trim(collect([$v['reference'] ?? null, $v['texte'] ?? null])
                         ->filter()->implode(' — ')) ?: null;
+                    $ligne['type_vetement_demande'] = $v['type_vetement'] ?? null;
                     $ligne['taille_id'] = $v['taille_id'] ?? null;
                     $ligne['couleur_id'] = $v['couleur_id'] ?? null;
 
@@ -595,7 +608,7 @@ class ComposerDemande extends Page implements HasForms
         return [
             'article_id' => null, 'taille_id' => null, 'couleur_id' => null,
             'quantite' => 1, 'prix_unitaire' => null, 'verset' => null, 'modele' => null,
-            'nom_client' => null,
+            'nom_client' => null, 'type_vetement_demande' => null,
         ];
     }
 

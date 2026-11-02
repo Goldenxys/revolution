@@ -80,6 +80,42 @@ class CompositeurTest extends TestCase
         $this->assertSame('1', DemandeResource::getNavigationBadge());
     }
 
+    /**
+     * Colonne « Demande » de la liste : générique (« N vêtement(s) My
+     * Verse »), plus seulement « tee-shirt », depuis que le catalogue
+     * propose aussi des pulls.
+     */
+    public function test_la_liste_affiche_le_nombre_de_vetements_my_verse(): void
+    {
+        $gerante = User::factory()->create();
+        [, $commande] = $this->demande('0700000002');
+
+        Livewire::actingAs($gerante)->test(ListDemandes::class)
+            ->assertSee('2 vêtements My Verse');
+    }
+
+    /**
+     * Commande::libelle_article (tableau de bord, mail, export) reflète
+     * « Pull » quand c'est le vêtement demandé — au lieu du « Tee-shirt »
+     * codé en dur auparavant — tant qu'aucune ligne n'est encore composée.
+     */
+    public function test_libelle_article_reflete_le_pull_souhaite_avant_composition(): void
+    {
+        $client = Client::create([
+            'cle' => Client::cleDepuisTelephone('0700000013'),
+            'nom' => 'Aya', 'telephone' => '0700000013', 'nb_commandes' => 0,
+        ]);
+        $commande = Commande::create([
+            'client_id' => $client->id, 'commune' => 'Cocody', 'frais_livraison' => 1500,
+            'mode_livraison' => 'livreur', 'statut' => 'en_attente', 'collection' => 'my_verse',
+            'souhaits_client' => ['collection' => 'my_verse', 'versets' => [
+                ['reference' => 'Philippiens 4:13', 'texte' => null, 'type_vetement' => 'pull'],
+            ]],
+        ]);
+
+        $this->assertSame('Pull MY VERSE', $commande->libelle_article);
+    }
+
     public function test_composer_et_valider_une_demande(): void
     {
         $gerante = User::factory()->create();
@@ -216,6 +252,62 @@ class CompositeurTest extends TestCase
                 return $ligne['taille_id'] === 3 && $ligne['couleur_id'] === 7
                     && $ligne['article_id'] === null; // le modèle My Verse reste à choisir
             });
+    }
+
+    /**
+     * Le vêtement souhaité (tee-shirt ou pull) est reporté dans la ligne
+     * initiale — affiché en info à la gérante (type_vetement_info) mais ne
+     * restreint jamais le choix d'article, qui reste entièrement le sien.
+     */
+    public function test_le_compositeur_reporte_le_vetement_souhaite_dun_verset_my_verse(): void
+    {
+        $gerante = User::factory()->create();
+
+        $client = Client::create([
+            'cle' => Client::cleDepuisTelephone('0700000011'),
+            'nom' => 'Aya Kouassi', 'telephone' => '0700000011',
+            'statut' => 'prospect', 'numero_client' => 'REV-C-0011', 'nb_commandes' => 0,
+        ]);
+        $commande = Commande::create([
+            'client_id' => $client->id,
+            'commune' => 'Cocody', 'frais_livraison' => 1500, 'mode_livraison' => 'livreur',
+            'statut' => 'en_attente', 'collection' => 'my_verse',
+            'souhaits_client' => ['collection' => 'my_verse', 'versets' => [
+                ['reference' => 'Philippiens 4:13', 'texte' => null, 'type_vetement' => 'pull'],
+            ]],
+        ]);
+
+        Livewire::actingAs($gerante)
+            ->test(ComposerDemande::class, ['record' => $commande->getKey()])
+            ->assertFormSet(fn (array $state) => array_values($state['lignes'])[0]['type_vetement_demande'] === 'pull');
+    }
+
+    /**
+     * Demande en_attente déposée avant ce champ (données legacy) : pas de
+     * `type_vetement` dans souhaits_client — le compositeur doit s'ouvrir
+     * sans erreur, simplement sans l'info vêtement.
+     */
+    public function test_le_compositeur_souvre_sans_erreur_sur_un_verset_sans_type_vetement_legacy(): void
+    {
+        $gerante = User::factory()->create();
+
+        $client = Client::create([
+            'cle' => Client::cleDepuisTelephone('0700000012'),
+            'nom' => 'Aya Kouassi', 'telephone' => '0700000012',
+            'statut' => 'prospect', 'numero_client' => 'REV-C-0012', 'nb_commandes' => 0,
+        ]);
+        $commande = Commande::create([
+            'client_id' => $client->id,
+            'commune' => 'Cocody', 'frais_livraison' => 1500, 'mode_livraison' => 'livreur',
+            'statut' => 'en_attente', 'collection' => 'my_verse',
+            'souhaits_client' => ['collection' => 'my_verse', 'versets' => [
+                ['reference' => 'Philippiens 4:13', 'texte' => null],
+            ]],
+        ]);
+
+        Livewire::actingAs($gerante)
+            ->test(ComposerDemande::class, ['record' => $commande->getKey()])
+            ->assertFormSet(fn (array $state) => array_values($state['lignes'])[0]['type_vetement_demande'] === null);
     }
 
     public function test_le_compositeur_prefill_les_articles_dune_demande_autre_collection(): void

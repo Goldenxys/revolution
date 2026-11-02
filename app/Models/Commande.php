@@ -291,7 +291,14 @@ class Commande extends Model
 
         if ($this->estMyVerse()) {
             return collect($souhaits['versets'] ?? [])->map(fn (array $v) => [
-                'nom' => collect([$v['reference'] ?? null, $v['texte'] ?? null])->filter()->implode(' — ') ?: 'Verset à préciser',
+                'nom' => collect([
+                    match ($v['type_vetement'] ?? null) {
+                        'pull' => 'Pull',
+                        'tee_shirt' => 'Tee-shirt',
+                        default => null,
+                    },
+                    collect([$v['reference'] ?? null, $v['texte'] ?? null])->filter()->implode(' — ') ?: 'Verset à préciser',
+                ])->filter()->implode(' — '),
                 'taille' => $v['taille_libelle'] ?? null,
                 'couleur' => $v['couleur_nom'] ?? null,
                 'quantite' => 1,
@@ -330,7 +337,10 @@ class Commande extends Model
         }
 
         if ($this->estMyVerse()) {
-            return trim('Tee-shirt MY VERSE'.($this->couleur ? " · {$this->couleur}" : ''));
+            $typeVetement = $this->souhaits_client['versets'][0]['type_vetement'] ?? null;
+            $libelleVetement = $typeVetement === 'pull' ? 'Pull' : 'Tee-shirt';
+
+            return trim("{$libelleVetement} MY VERSE".($this->couleur ? " · {$this->couleur}" : ''));
         }
 
         return trim(($this->type_article ?? 'Article').' « '.($this->nom_article ?? '').' »');

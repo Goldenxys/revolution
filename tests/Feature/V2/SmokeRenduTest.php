@@ -22,7 +22,7 @@ class SmokeRenduTest extends TestCase
         $this->actingAs($g)->get($base.'/demandes')->assertOk();
         $this->actingAs($g)->get($base.'/demandes/'.$d->id.'/composer')->assertOk();
         $this->actingAs($g)->get($base.'/demandes/'.$autre->id.'/composer')->assertOk();
-        $this->get(route('commande.demande.creer'))->assertOk()->assertSee('Ajouter un autre tee-shirt My Verse');
+        $this->get(route('commande.demande.creer'))->assertOk()->assertSee('Ajouter un autre vêtement My Verse');
         $this->get(route('commande.demande.autre'))->assertOk();
     }
 }

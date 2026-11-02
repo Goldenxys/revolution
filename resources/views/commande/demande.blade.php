@@ -112,19 +112,29 @@
             </fieldset>
 
             @if ($estMyVerse)
-                {{-- Bloc 2 — Vos versets (un tee-shirt = un verset, ajout possible) --}}
+                {{-- Bloc 2 — Vos versets (un vêtement = un verset, ajout possible) --}}
                 <fieldset class="space-y-4 border-t border-filet pt-8">
                     <legend class="text-sm uppercase tracking-[0.14em] text-texte-secondaire mb-1">Votre / vos versets</legend>
-                    <p class="text-[13px] text-texte-secondaire">Un tee-shirt = un verset. Ajoutez-en autant que vous voulez commander.</p>
+                    <p class="text-[13px] text-texte-secondaire">Un vêtement = un verset (tee-shirt ou pull). Ajoutez-en autant que vous voulez commander.</p>
 
                     @error('versets')<p class="text-xs text-rouille">{{ $message }}</p>@enderror
 
                     <template x-for="(verset, index) in versets" :key="index">
                         <div class="border border-filet bg-carte p-4 space-y-4">
                             <div class="flex items-center justify-between">
-                                <span class="text-[13px] text-texte-secondaire" x-text="`Tee-shirt My Verse ${index + 1}`"></span>
+                                <span class="text-[13px] text-texte-secondaire" x-text="`${verset.type_vetement === 'pull' ? 'Pull' : 'Tee-shirt'} My Verse ${index + 1}`"></span>
                                 <button type="button" x-show="versets.length > 1" @click="retirerVerset(index)"
                                         class="text-[13px] text-texte-secondaire hover:text-rouille">Retirer</button>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm mb-2">Vêtement souhaité <span class="text-rouille">*</span></label>
+                                <select :name="`versets[${index}][type_vetement]`" x-model="verset.type_vetement" required
+                                        class="w-full border border-filet bg-creme px-4 py-3 text-base focus:border-rouille focus:ring-0 rounded-none">
+                                    <option value="" disabled>Choisissez un vêtement</option>
+                                    <option value="tee_shirt">Tee-shirt</option>
+                                    <option value="pull">Pull</option>
+                                </select>
                             </div>
 
                             <div>
@@ -168,7 +178,7 @@
 
                     <button type="button" @click="ajouterVerset()"
                             class="w-full border border-dashed border-filet text-encre py-3 text-sm hover:border-rouille transition rounded-none">
-                        + Ajouter un autre tee-shirt My Verse
+                        + Ajouter un autre vêtement My Verse
                     </button>
                 </fieldset>
             @endif

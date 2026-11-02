@@ -85,9 +85,15 @@ class DemandeResource extends Resource
 
                 TextColumn::make('demande')
                     ->label('Demande')
-                    ->state(fn (Commande $c) => $c->estMyVerse()
-                        ? count($c->souhaits_client['versets'] ?? []).' tee-shirt My Verse'
-                        : 'Autre article')
+                    ->state(function (Commande $c) {
+                        if (! $c->estMyVerse()) {
+                            return 'Autre article';
+                        }
+
+                        $n = count($c->souhaits_client['versets'] ?? []);
+
+                        return "{$n} vêtement".($n > 1 ? 's' : '').' My Verse';
+                    })
                     ->description(fn (Commande $c) => static::resumeSouhaits($c))
                     ->wrap(),
 

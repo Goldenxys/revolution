@@ -82,8 +82,8 @@ class FormulaireDemandeTest extends TestCase
             'email' => 'aya@example.com',
             'collection' => 'my_verse',
             'versets' => [
-                ['reference' => 'Philippiens 4:13', 'texte' => 'Je puis tout par celui qui me fortifie.'],
-                ['reference' => 'Jean 3:16', 'texte' => null],
+                ['reference' => 'Philippiens 4:13', 'texte' => 'Je puis tout par celui qui me fortifie.', 'type_vetement' => 'tee_shirt'],
+                ['reference' => 'Jean 3:16', 'texte' => null, 'type_vetement' => 'pull'],
             ],
             'precisions' => 'Écriture dorée',
             'commune' => 'Cocody',
@@ -99,6 +99,8 @@ class FormulaireDemandeTest extends TestCase
         $this->assertNull($commande->couleur);
         $this->assertCount(2, $commande->souhaits_client['versets']);
         $this->assertSame('Philippiens 4:13', $commande->souhaits_client['versets'][0]['reference']);
+        $this->assertSame('tee_shirt', $commande->souhaits_client['versets'][0]['type_vetement']);
+        $this->assertSame('pull', $commande->souhaits_client['versets'][1]['type_vetement']);
         $this->assertSame('Philippiens 4:13', $commande->verset_reference); // 1er verset sur la colonne historique
         $this->assertSame('Écriture dorée', $commande->message_client);
         $this->assertSame(0, $commande->total_articles);
@@ -121,7 +123,7 @@ class FormulaireDemandeTest extends TestCase
             'nom' => 'Aya Kouassi', 'telephone' => '0102030405',
             'collection' => 'my_verse',
             'versets' => [
-                ['reference' => 'Philippiens 4:13', 'texte' => null, 'taille_id' => $taille->id, 'couleur_id' => $couleur->id],
+                ['reference' => 'Philippiens 4:13', 'texte' => null, 'type_vetement' => 'pull', 'taille_id' => $taille->id, 'couleur_id' => $couleur->id],
             ],
             'commune' => 'Cocody', 'mode_livraison' => 'livreur',
         ])->assertRedirect();
@@ -239,6 +241,25 @@ class FormulaireDemandeTest extends TestCase
     }
 
     /**
+     * Le vêtement (tee-shirt ou pull) est obligatoire par verset — à la
+     * différence de taille/couleur qui restent facultatives : un verset
+     * sans vêtement choisi n'a pas de sens.
+     */
+    public function test_my_verse_exige_un_vetement_par_verset(): void
+    {
+        User::factory()->create();
+
+        $this->post(route('commande.demande.store'), [
+            'nom' => 'Aya', 'telephone' => '0102030405',
+            'collection' => 'my_verse',
+            'versets' => [['reference' => 'Philippiens 4:13', 'texte' => null]],
+            'commune' => 'Cocody', 'mode_livraison' => 'livreur',
+        ])->assertSessionHasErrors('versets.0.type_vetement');
+
+        $this->assertSame(0, Commande::count());
+    }
+
+    /**
      * Bug constaté en production (capture d'écran) : les mails « demande
      * reçue » (cliente) et « demande à valider » (gérante) affichaient
      * toujours « Article × 1 » générique, quel que soit l'article tapé —
@@ -292,6 +313,35 @@ class FormulaireDemandeTest extends TestCase
         $this->assertStringContainsString('Robe Grâce', $html);
         $this->assertStringContainsString('× 2', $html);
         $this->assertStringNotContainsString('Article ×', $html);
+    }
+
+    /**
+     * Les mails pré-validation (cliente et gérante) préfixent le verset par
+     * le vêtement demandé — « Pull — Philippiens 4:13 » — pour que la
+     * gérante sache tout de suite si c'est un tee-shirt ou un pull.
+     */
+    public function test_les_mails_my_verse_affichent_le_vetement_demande(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        User::factory()->create();
+
+        $this->post(route('commande.demande.store'), [
+            'nom' => 'Tina Aman', 'telephone' => '0102030409', 'email' => 'tina@example.com',
+            'collection' => 'my_verse',
+            'versets' => [
+                ['reference' => 'Philippiens 4:13', 'texte' => null, 'type_vetement' => 'pull'],
+            ],
+            'commune' => 'Cocody', 'mode_livraison' => 'livreur',
+        ])->assertRedirect();
+
+        $commande = Commande::first();
+
+        $htmlCliente = (new DemandeRecue($commande))->render();
+        $this->assertStringContainsString('Pull — Philippiens 4:13', $htmlCliente);
+
+        $htmlGerante = (new DemandeDeposee($commande, 'https://example.test/compositeur'))->render();
+        $this->assertStringContainsString('Pull — Philippiens 4:13', $htmlGerante);
     }
 
     public function test_anti_doublon_90_secondes(): void

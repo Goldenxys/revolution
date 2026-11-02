@@ -90,6 +90,7 @@ class DemandeController extends Controller
                     return [
                         'reference' => filled($v['reference'] ?? null) ? trim($v['reference']) : null,
                         'texte' => filled($v['texte'] ?? null) ? trim($v['texte']) : null,
+                        'type_vetement' => $v['type_vetement'] ?? null,
                         'taille_id' => $taille?->id,
                         'taille_libelle' => $taille?->libelle,
                         'couleur_id' => $couleur?->id,
